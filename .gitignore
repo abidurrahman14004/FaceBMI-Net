@@ -41,10 +41,12 @@ uploads/
 *.swp
 *.swo
 *~
-
+# Streamlit
+.streamlit/secrets.toml
 # OS
 .DS_Store
 Thumbs.db
+
 
 # Model files (uncomment if you don't want to track model files)
 # *.h5
