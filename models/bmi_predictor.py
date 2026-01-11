@@ -6,7 +6,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
-import torchvision.models as models
+
+# Import sklearn for model loading (model contains RobustScaler objects)
+try:
+    import sklearn
+    from sklearn.preprocessing import RobustScaler
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+    print("Warning: sklearn not available. Model loading may fail if model contains sklearn objects.")
 
 
 # Try to import torch_geometric for GCN support
@@ -164,9 +172,8 @@ class HybridModel(nn.Module):
         super(HybridModel, self).__init__()
         self.use_gcn = use_gcn and num_landmarks > 0
 
-        # Image backbone - ResNet18
-        resnet = models.resnet18(weights=None)  # Don't use pretrained weights for inference
-        self.img_backbone = nn.Sequential(*list(resnet.children())[:-1])
+        # Image backbone - Custom CNN
+        self.img_backbone = self._build_cnn_backbone()
         
         # Image projection
         self.img_proj = nn.Sequential(
@@ -217,14 +224,54 @@ class HybridModel(nn.Module):
         self.log_vars = nn.Parameter(torch.zeros(4))
         
         self._init_weights()
+    
+    def _build_cnn_backbone(self):
+        """
+        Build a custom CNN backbone for image feature extraction.
+        Output feature size: 512
+        """
+        return nn.Sequential(
+            # First block
+            nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+            
+            # Second block
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            
+            # Third block
+            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            
+            # Fourth block
+            nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d((1, 1))  # Global average pooling
+        )
 
     def _init_weights(self):
         for m in self.modules():
-            if isinstance(m, nn.Linear):
+            if isinstance(m, (nn.Linear, nn.Conv2d)):
                 nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
-            elif isinstance(m, (nn.BatchNorm1d, nn.LayerNorm)):
+            elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.LayerNorm)):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
 
