@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+*.egg-info/
+
+# Model files - download separately or use external storage
+*.pth
+*.h5
+*.pkl
+*.onnx
+*.pb
+models/*.pth
+
+# Uploads
+uploads/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README*.md
+*.md
+
+# Deployment files
+Procfile
+runtime.txt
+packages.txt
+setup.sh

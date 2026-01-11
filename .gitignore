@@ -48,9 +48,12 @@ uploads/
 Thumbs.db
 
 
-# Model files (uncomment if you don't want to track model files)
-# *.h5
-# *.pkl
-# *.pth
-# *.onnx
-# *.pb
+# Model files - exclude large model files from git to speed up deployment
+*.h5
+*.pkl
+*.pth
+*.onnx
+*.pb
+models/*.pth
+models/*.h5
+models/*.pkl
