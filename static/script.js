@@ -8,26 +8,33 @@ const contentSections = document.querySelectorAll('.content-section');
 
 navItems.forEach(item => {
     item.addEventListener('click', (e) => {
-        e.preventDefault();
-        const targetSection = item.getAttribute('data-section');
+        const href = item.getAttribute('href');
         
-        // Update active nav item
-        navItems.forEach(nav => nav.classList.remove('active'));
-        item.classList.add('active');
-        
-        // Show target section
-        contentSections.forEach(section => {
-            section.classList.add('d-none');
-            section.classList.remove('active');
-        });
-        const target = document.getElementById(targetSection);
-        if (target) {
-            target.classList.remove('d-none');
-            target.classList.add('active');
+        // Only prevent default for hash-based navigation (sections on same page)
+        // Allow normal navigation for full URLs (/samples, /privacy-policy, etc.)
+        if (href && href.startsWith('#')) {
+            e.preventDefault();
+            const targetSection = item.getAttribute('data-section');
+            
+            // Update active nav item
+            navItems.forEach(nav => nav.classList.remove('active'));
+            item.classList.add('active');
+            
+            // Show target section
+            contentSections.forEach(section => {
+                section.classList.add('d-none');
+                section.classList.remove('active');
+            });
+            const target = document.getElementById(targetSection);
+            if (target) {
+                target.classList.remove('d-none');
+                target.classList.add('active');
+            }
+            
+            // Scroll to top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
-        
-        // Scroll to top
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // For full URLs (/samples, /privacy-policy, /), let the browser handle navigation normally
     });
 });
 
