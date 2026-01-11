@@ -310,7 +310,19 @@ class BMIPredictor:
         self.model_path = model_path
         self.model = None
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.load_model()
+        self.model_loaded = False
+        self.load_error = None
+        
+        # Try to load model, but don't fail if it doesn't exist
+        try:
+            if not os.path.exists(model_path):
+                raise FileNotFoundError(f"Model file not found at {model_path}")
+            self.load_model()
+            self.model_loaded = True
+        except Exception as e:
+            self.load_error = str(e)
+            print(f"Warning: Model could not be loaded during initialization: {e}")
+            print("Model will be loaded lazily when first prediction is requested.")
     
     def load_model(self):
         """
@@ -444,10 +456,31 @@ class BMIPredictor:
             Dictionary with prediction results
         """
         try:
+            # Try to load model if it wasn't loaded during initialization
+            if not self.model_loaded:
+                try:
+                    if not os.path.exists(self.model_path):
+                        return {
+                            'success': False,
+                            'error': f'Model file not found at {self.model_path}. Please ensure the model file exists.'
+                        }
+                    self.load_model()
+                    self.model_loaded = True
+                    self.load_error = None
+                except Exception as e:
+                    self.load_error = str(e)
+                    import traceback
+                    traceback.print_exc()
+                    return {
+                        'success': False,
+                        'error': f'Failed to load model: {str(e)}. Please check the model file and dependencies.'
+                    }
+            
             if self.model is None:
+                error_msg = self.load_error or 'Model not loaded. Please check model file.'
                 return {
                     'success': False,
-                    'error': 'Model not loaded. Please check model file.'
+                    'error': error_msg
                 }
             
             # Preprocess image

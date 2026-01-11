@@ -15,9 +15,42 @@ app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 # Create uploads directory if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Initialize BMI predictor with model path
+# Initialize BMI predictor with model path (lazy loading)
 model_path = os.path.join('models', 'hybrid_model_v2.pth')
-bmi_predictor = BMIPredictor(model_path=model_path)
+bmi_predictor = None
+
+def get_bmi_predictor():
+    """Lazy initialization of BMI predictor"""
+    global bmi_predictor
+    if bmi_predictor is None:
+        try:
+            # Check if model file exists
+            if not os.path.exists(model_path):
+                print(f"Warning: Model file not found at {model_path}")
+                print("Creating BMIPredictor instance - model will be loaded on first prediction attempt")
+            
+            # Create predictor instance (it won't fail even if model doesn't exist)
+            bmi_predictor = BMIPredictor(model_path=model_path)
+            
+            # If model was successfully loaded, print confirmation
+            if bmi_predictor.model_loaded:
+                print("BMI Predictor initialized successfully!")
+            else:
+                print(f"BMI Predictor created but model not loaded yet. Error: {bmi_predictor.load_error}")
+                
+        except Exception as e:
+            print(f"Error initializing BMI predictor: {e}")
+            import traceback
+            traceback.print_exc()
+            # Create a dummy predictor that returns errors
+            class DummyPredictor:
+                def predict(self, image_bytes):
+                    return {
+                        'success': False,
+                        'error': f'Model not available: {str(e)}. Please ensure the model file exists at {model_path}'
+                    }
+            bmi_predictor = DummyPredictor()
+    return bmi_predictor
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -48,7 +81,8 @@ def predict():
         image_bytes = file.read()
         
         # Process image and predict BMI
-        result = bmi_predictor.predict(image_bytes)
+        predictor = get_bmi_predictor()
+        result = predictor.predict(image_bytes)
         
         if result['success']:
             return jsonify({
