@@ -1,6 +1,6 @@
 """
 BMI Predictor - Complete Streamlit Application
-Rebuilt from scratch to match Flask app functionality and design.
+Rebuilt from scratch - Clean, organized, and deployment-ready.
 """
 import streamlit as st
 import os
@@ -25,29 +25,24 @@ st.set_page_config(
 # ============================================================================
 st.markdown("""
 <style>
-    /* Import Bootstrap Icons */
     @import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css');
     
-    /* CSS Variables - Matching Flask App */
     :root {
         --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         --sidebar-bg: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
         --card-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
     }
     
-    /* Hide Streamlit default elements */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     .stDeployButton {display: none;}
     
-    /* Main App Background */
     .stApp {
         background: var(--primary-gradient) !important;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
     
-    /* Sidebar Styling */
     [data-testid="stSidebar"] {
         background: var(--sidebar-bg) !important;
     }
@@ -57,7 +52,6 @@ st.markdown("""
         padding: 1rem;
     }
     
-    /* Custom Card */
     .custom-card {
         background: white;
         border-radius: 20px;
@@ -66,7 +60,6 @@ st.markdown("""
         margin-bottom: 2rem;
     }
     
-    /* Feature Cards */
     .feature-card {
         background: #f8f9ff;
         border-left: 4px solid #667eea;
@@ -81,7 +74,6 @@ st.markdown("""
         box-shadow: 0 5px 20px rgba(102, 126, 234, 0.2);
     }
     
-    /* BMI Value Display */
     .bmi-value-large {
         font-size: 5rem;
         font-weight: 700;
@@ -101,7 +93,6 @@ st.markdown("""
         margin: 1rem 0;
     }
     
-    /* BMI Scale */
     .bmi-scale-container {
         display: flex;
         border-radius: 10px;
@@ -126,7 +117,6 @@ st.markdown("""
     .scale-overweight { background: #f39c12; }
     .scale-obese { background: #e74c3c; }
     
-    /* Sample Card */
     .sample-card-wrapper {
         background: white;
         border-radius: 10px;
@@ -140,7 +130,6 @@ st.markdown("""
         transform: translateY(-5px);
     }
     
-    /* Buttons */
     .stButton > button {
         background: var(--primary-gradient);
         color: white;
@@ -158,29 +147,8 @@ st.markdown("""
         box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
     }
     
-    /* Text Colors */
     h1, h2, h3, h4, h5, h6 {
         color: white;
-    }
-    
-    /* Upload Area */
-    .upload-area {
-        border: 3px dashed #667eea;
-        border-radius: 15px;
-        background: #f8f9ff;
-        padding: 3rem;
-        text-align: center;
-        min-height: 300px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.3s ease;
-    }
-    
-    .upload-area:hover {
-        border-color: #764ba2;
-        background: #f0f2ff;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -194,8 +162,8 @@ if 'model_loaded' not in st.session_state:
     st.session_state.model_loaded = False
 if 'prediction_result' not in st.session_state:
     st.session_state.prediction_result = None
-if 'uploaded_image' not in st.session_state:
-    st.session_state.uploaded_image = None
+if 'uploaded_image_bytes' not in st.session_state:
+    st.session_state.uploaded_image_bytes = None
 if 'samples_data' not in st.session_state:
     st.session_state.samples_data = None
 
@@ -218,6 +186,8 @@ def load_bmi_predictor():
         else:
             return None, predictor.load_error or "Model failed to load"
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return None, str(e)
 
 def get_bmi_category(bmi):
@@ -292,6 +262,8 @@ def load_samples_data():
         return samples_with_images, None
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return None, str(e)
 
 def find_image_file(filename, images_dir):
@@ -333,7 +305,6 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-    # Navigation
     page = st.radio(
         "Navigation",
         ["🏠 Home", "📊 Samples", "ℹ️ Privacy Policy"],
@@ -343,7 +314,6 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # Model Status
     st.markdown("### Model Status")
     if st.session_state.model_loaded:
         st.success("✅ Model Loaded")
@@ -370,10 +340,10 @@ if page == "🏠 Home":
                 if error:
                     st.error(f"Failed to load model: {error}")
     
-    # Tabs for different sections
+    # Tabs
     tab1, tab2, tab3 = st.tabs(["📖 Introduction", "⚙️ How It Works", "📱 The App"])
     
-    # ========== INTRODUCTION TAB ==========
+    # Introduction Tab
     with tab1:
         st.markdown('<h2 style="color: white; font-weight: bold; margin-bottom: 2rem;">Introduction</h2>', unsafe_allow_html=True)
         
@@ -415,7 +385,7 @@ if page == "🏠 Home":
         </div>
         """, unsafe_allow_html=True)
     
-    # ========== HOW IT WORKS TAB ==========
+    # How It Works Tab
     with tab2:
         st.markdown('<h2 style="color: white; font-weight: bold; margin-bottom: 2rem;">How the Model Works</h2>', unsafe_allow_html=True)
         
@@ -494,7 +464,7 @@ if page == "🏠 Home":
         </div>
         """, unsafe_allow_html=True)
     
-    # ========== THE APP TAB ==========
+    # The App Tab
     with tab3:
         st.markdown('<h2 style="color: white; font-weight: bold; margin-bottom: 2rem;">The App</h2>', unsafe_allow_html=True)
         
@@ -518,12 +488,43 @@ if page == "🏠 Home":
             
             if uploaded_file is not None:
                 try:
-                    image = Image.open(uploaded_file)
-                    st.image(image, caption="Uploaded Image", use_container_width=True)
-                    st.session_state.uploaded_image = uploaded_file
+                    # Read image bytes immediately and store
+                    uploaded_file.seek(0)  # Reset file pointer
+                    image_bytes = uploaded_file.read()
+                    
+                    # Validate image bytes
+                    if len(image_bytes) == 0:
+                        st.error("Error: Empty file uploaded")
+                        st.session_state.uploaded_image_bytes = None
+                    else:
+                        # Verify it's a valid image and convert to bytes if needed
+                        try:
+                            # Ensure we have raw bytes (not BytesIO)
+                            if isinstance(image_bytes, io.BytesIO):
+                                image_bytes = image_bytes.read()
+                            
+                            # Verify image can be opened
+                            img_io = io.BytesIO(image_bytes)
+                            test_image = Image.open(img_io)
+                            # Convert to RGB for consistency
+                            if test_image.mode != 'RGB':
+                                test_image = test_image.convert('RGB')
+                            
+                            # Store raw bytes for prediction
+                            st.session_state.uploaded_image_bytes = image_bytes
+                            
+                            # Display image
+                            st.image(test_image, caption="Uploaded Image", use_container_width=True)
+                        except Exception as img_error:
+                            st.error(f"Invalid image file: {str(img_error)}")
+                            import traceback
+                            st.code(traceback.format_exc())
+                            st.session_state.uploaded_image_bytes = None
                 except Exception as e:
                     st.error(f"Error loading image: {str(e)}")
-                    st.session_state.uploaded_image = None
+                    st.session_state.uploaded_image_bytes = None
+            else:
+                st.session_state.uploaded_image_bytes = None
         
         with col2:
             st.markdown("""
@@ -534,7 +535,7 @@ if page == "🏠 Home":
             </div>
             """, unsafe_allow_html=True)
             
-            if st.session_state.uploaded_image is None:
+            if st.session_state.uploaded_image_bytes is None:
                 st.markdown("""
                 <div style="text-align: center; padding: 3rem; color: #999;">
                     <i class="bi bi-graph-up" style="font-size: 4rem; opacity: 0.3;"></i>
@@ -548,19 +549,33 @@ if page == "🏠 Home":
                     else:
                         with st.spinner("Analyzing image and predicting BMI..."):
                             try:
-                                # Read image bytes
-                                image_bytes = st.session_state.uploaded_image.read()
+                                # Ensure we have raw bytes
+                                image_bytes = st.session_state.uploaded_image_bytes
+                                if isinstance(image_bytes, io.BytesIO):
+                                    image_bytes = image_bytes.read()
                                 
-                                # Predict BMI
-                                result = st.session_state.bmi_predictor.predict(image_bytes)
-                                
-                                if result['success']:
-                                    st.session_state.prediction_result = result
-                                else:
-                                    st.error(f"Prediction failed: {result.get('error', 'Unknown error')}")
+                                # Validate bytes before prediction
+                                if not isinstance(image_bytes, bytes):
+                                    st.error("Error: Invalid image data format")
                                     st.session_state.prediction_result = None
+                                elif len(image_bytes) == 0:
+                                    st.error("Error: Empty image data")
+                                    st.session_state.prediction_result = None
+                                else:
+                                    # Predict BMI
+                                    result = st.session_state.bmi_predictor.predict(image_bytes)
+                                    
+                                    if result['success']:
+                                        st.session_state.prediction_result = result
+                                        st.success("✅ Prediction completed!")
+                                    else:
+                                        st.error(f"❌ Prediction failed: {result.get('error', 'Unknown error')}")
+                                        st.session_state.prediction_result = None
                             except Exception as e:
-                                st.error(f"Error during prediction: {str(e)}")
+                                st.error(f"❌ Error during prediction: {str(e)}")
+                                import traceback
+                                with st.expander("Error Details"):
+                                    st.code(traceback.format_exc())
                                 st.session_state.prediction_result = None
                 
                 # Display results
@@ -572,14 +587,11 @@ if page == "🏠 Home":
                     
                     category_name, color, icon = get_bmi_category(bmi)
                     
-                    # BMI Value
                     st.markdown(f'<div class="bmi-value-large">{bmi:.2f}</div>', unsafe_allow_html=True)
                     st.markdown(f'<div class="bmi-category-large" style="color: {color};">{icon} {category_name}</div>', unsafe_allow_html=True)
                     
-                    # Message
                     st.info(message)
                     
-                    # BMI Scale
                     st.markdown("""
                     <div class="bmi-scale-container">
                         <div class="scale-seg scale-underweight">Underweight</div>
@@ -589,7 +601,6 @@ if page == "🏠 Home":
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Additional info
                     with st.expander("📊 BMI Information"):
                         st.markdown(f"""
                         - **BMI Value**: {bmi:.2f}
@@ -605,7 +616,7 @@ if page == "🏠 Home":
                         """)
                     
                     if st.button("🔄 Upload Another Image", use_container_width=True):
-                        st.session_state.uploaded_image = None
+                        st.session_state.uploaded_image_bytes = None
                         st.session_state.prediction_result = None
                         st.rerun()
 
@@ -620,13 +631,32 @@ elif page == "📊 Samples":
         with st.spinner("Loading samples data..."):
             samples_data, error = load_samples_data()
             if error:
-                st.error(f"Error loading samples: {error}")
+                st.error(f"❌ Error loading samples: {error}")
                 st.session_state.samples_data = []
             else:
                 st.session_state.samples_data = samples_data or []
     
+    # Reload button
+    if st.button("🔄 Reload Samples", use_container_width=True):
+        st.cache_data.clear()
+        st.session_state.samples_data = None
+        st.rerun()
+    
     if len(st.session_state.samples_data) == 0:
-        st.warning("No samples with images found. Please ensure images are placed in: `samples/front/`")
+        st.warning("⚠️ No samples with images found.")
+        images_dir = os.path.join('samples', 'front')
+        csv_path = os.path.join('samples', 'dataset.csv')
+        
+        with st.expander("Debug Information"):
+            st.write(f"**CSV Path:** {csv_path}")
+            st.write(f"**CSV Exists:** {os.path.exists(csv_path)}")
+            st.write(f"**Images Directory:** {images_dir}")
+            st.write(f"**Images Directory Exists:** {os.path.exists(images_dir)}")
+            if os.path.exists(images_dir):
+                files = os.listdir(images_dir)
+                st.write(f"**Files in directory:** {len(files)}")
+                if len(files) > 0:
+                    st.write(f"**First 5 files:** {files[:5]}")
     else:
         st.markdown("""
         <div class="custom-card">
@@ -645,13 +675,13 @@ elif page == "📊 Samples":
         filtered = [s for s in st.session_state.samples_data if min_bmi <= float(s['BMI']) <= max_bmi]
         
         if len(filtered) == 0:
-            st.warning(f"No samples found in BMI range {min_bmi} - {max_bmi}")
+            st.warning(f"⚠️ No samples found in BMI range {min_bmi} - {max_bmi}")
         else:
             # Random sample if needed
             if len(filtered) > num_samples:
                 filtered = random.sample(filtered, num_samples)
             
-            st.info(f"Showing {len(filtered)} sample(s) (Total available with images: {len(st.session_state.samples_data)})")
+            st.info(f"ℹ️ Showing {len(filtered)} sample(s) (Total available with images: {len(st.session_state.samples_data)})")
             
             # Display samples in grid
             images_dir = os.path.join('samples', 'front')
