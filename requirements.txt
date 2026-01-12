@@ -1,7 +1,5 @@
-# Core web framework
-Flask==3.0.0
-Werkzeug==3.0.1
-gunicorn==21.2.0
+# Streamlit (for Streamlit Cloud deployment)
+streamlit>=1.28.0
 
 # Image processing
 Pillow==10.4.0
@@ -21,3 +19,8 @@ scikit-learn==1.5.2
 
 # For model downloading (optional)
 requests>=2.31.0
+
+# Flask (optional - for local Flask deployment)
+# Flask==3.0.0
+# Werkzeug==3.0.1
+# gunicorn==21.2.0
