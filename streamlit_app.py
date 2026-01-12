@@ -226,7 +226,7 @@ def show_landing_page():
     with col1:
         st.markdown("""
         <div style="background-color: #e8f5e9; padding: 1.5rem; border-radius: 10px; text-align: center;">
-            <h2 style="color: #2ecc71; margin: 0;">0.3387</h2>
+            <h2 style="color: #2ecc71; margin: 0;">0.5923</h2>
             <p style="color: #27ae60; margin: 0.5rem 0 0 0;">R² Score</p>
         </div>
         """, unsafe_allow_html=True)
@@ -234,7 +234,7 @@ def show_landing_page():
     with col2:
         st.markdown("""
         <div style="background-color: #e3f2fd; padding: 1.5rem; border-radius: 10px; text-align: center;">
-            <h2 style="color: #3498db; margin: 0;">1.78</h2>
+            <h2 style="color: #3498db; margin: 0;">1.44</h2>
             <p style="color: #2980b9; margin: 0.5rem 0 0 0;">MAE (kg/m²)</p>
         </div>
         """, unsafe_allow_html=True)
