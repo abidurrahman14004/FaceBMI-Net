@@ -1,6 +1,6 @@
 """
-BMI Predictor - Streamlit App
-A complete Streamlit application for BMI prediction from facial images.
+BMI Predictor - Complete Streamlit App
+Replicates all functionality from Flask app.py with the same design and features.
 """
 import streamlit as st
 import os
@@ -11,54 +11,172 @@ from models.bmi_predictor import BMIPredictor
 
 # Page configuration
 st.set_page_config(
-    page_title="BMI Predictor - AI-Powered Analysis",
+    page_title="BMI Predictor - AI-Powered Body Mass Index Calculator",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# Inject custom CSS to match Flask app design
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #667eea;
-        text-align: center;
+    /* Import Bootstrap Icons */
+    @import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css');
+    
+    /* Root variables matching Flask app */
+    :root {
+        --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --sidebar-bg: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+        --card-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Main background */
+    .stApp {
+        background: var(--primary-gradient) !important;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    /* Hide default Streamlit elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Sidebar styling */
+    .css-1d391kg {
+        background: var(--sidebar-bg) !important;
+    }
+    
+    [data-testid="stSidebar"] {
+        background: var(--sidebar-bg) !important;
+    }
+    
+    [data-testid="stSidebar"] > div:first-child {
+        background: var(--sidebar-bg) !important;
+    }
+    
+    /* Custom card styles */
+    .custom-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: var(--card-shadow);
         margin-bottom: 2rem;
     }
-    .bmi-result {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
-        border-radius: 10px;
-        color: white;
-        text-align: center;
-        margin: 2rem 0;
-    }
-    .bmi-value {
-        font-size: 3rem;
-        font-weight: bold;
-        margin: 1rem 0;
-    }
-    .bmi-category {
-        font-size: 1.5rem;
-        margin: 1rem 0;
-    }
+    
     .feature-card {
-        background: #f8f9fa;
+        background: #f8f9ff;
+        border-left: 4px solid #667eea;
         padding: 1.5rem;
         border-radius: 10px;
         margin: 1rem 0;
-        border-left: 4px solid #667eea;
+        transition: all 0.3s ease;
     }
-    .stButton>button {
-        width: 100%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    
+    .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 20px rgba(102, 126, 234, 0.2);
+    }
+    
+    /* BMI Display */
+    .bmi-value {
+        font-size: 5rem;
+        font-weight: 700;
+        background: var(--primary-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1;
+        text-align: center;
+    }
+    
+    .bmi-category {
+        font-weight: 600;
+        text-align: center;
+        font-size: 1.5rem;
+        margin: 1rem 0;
+    }
+    
+    /* BMI Scale */
+    .bmi-scale {
+        display: flex;
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 2rem 0;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .scale-segment {
+        flex: 1;
+        padding: 1rem;
+        text-align: center;
+        color: white;
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+    
+    .scale-underweight { background: #3498db; }
+    .scale-normal { background: #2ecc71; }
+    .scale-overweight { background: #f39c12; }
+    .scale-obese { background: #e74c3c; }
+    
+    /* Upload box */
+    .upload-box {
+        border: 3px dashed #667eea;
+        border-radius: 15px;
+        background: #f8f9ff;
+        padding: 3rem;
+        text-align: center;
+        min-height: 300px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+    }
+    
+    .upload-box:hover {
+        border-color: #764ba2;
+        background: #f0f2ff;
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        background: var(--primary-gradient);
         color: white;
         border: none;
-        padding: 0.75rem;
-        border-radius: 5px;
-        font-weight: bold;
+        padding: 0.75rem 2rem;
+        border-radius: 50px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        width: 100%;
+    }
+    
+    .stButton > button:hover {
+        filter: brightness(1.1);
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Sample cards */
+    .sample-card {
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease;
+    }
+    
+    .sample-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    /* Text colors */
+    .text-white {
+        color: white !important;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        color: white;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -68,6 +186,12 @@ if 'bmi_predictor' not in st.session_state:
     st.session_state.bmi_predictor = None
 if 'model_loaded' not in st.session_state:
     st.session_state.model_loaded = False
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "Home"
+if 'prediction_result' not in st.session_state:
+    st.session_state.prediction_result = None
+if 'uploaded_image' not in st.session_state:
+    st.session_state.uploaded_image = None
 
 @st.cache_resource
 def load_bmi_predictor():
@@ -87,7 +211,7 @@ def load_bmi_predictor():
         return None, str(e)
 
 def get_bmi_category(bmi):
-    """Get BMI category and color"""
+    """Get BMI category, color, and icon"""
     if bmi < 18.5:
         return "Underweight", "#17a2b8", "⚠️"
     elif bmi < 25:
@@ -97,31 +221,89 @@ def get_bmi_category(bmi):
     else:
         return "Obese", "#dc3545", "⚠️"
 
-def get_bmi_message(bmi, category):
-    """Get personalized message based on BMI"""
-    if category == "Underweight":
-        return "Consider consulting a healthcare professional about healthy weight gain strategies."
-    elif category == "Normal weight":
-        return "You have a healthy weight! Keep up the good work with balanced nutrition and regular exercise."
-    elif category == "Overweight":
-        return "Consider adopting a balanced diet and regular exercise routine. Consult a healthcare professional for personalized advice."
-    else:
-        return "Please consult a healthcare professional for guidance on achieving a healthy weight."
-
-# Sidebar
-with st.sidebar:
-    st.title("🤖 BMI Predictor")
-    st.markdown("### AI-Powered Analysis")
-    st.markdown("---")
+def get_samples_data():
+    """Get samples data from CSV and filter by available images"""
+    csv_path = os.path.join('samples', 'dataset.csv')
     
-    st.markdown("### Navigation")
+    if not os.path.exists(csv_path):
+        return None, "CSV file not found"
+    
+    try:
+        df = pd.read_csv(csv_path)
+        
+        if 'image_filename' not in df.columns or 'BMI' not in df.columns:
+            return None, "Required columns not found in CSV"
+        
+        columns_to_return = ['image_filename', 'BMI']
+        if 'id' in df.columns:
+            columns_to_return.insert(0, 'id')
+        
+        df_clean = df[columns_to_return].copy()
+        df_clean = df_clean.dropna(subset=['image_filename', 'BMI'])
+        df_clean['BMI'] = pd.to_numeric(df_clean['BMI'], errors='coerce')
+        df_clean = df_clean.dropna(subset=['BMI'])
+        
+        # Filter samples with existing images
+        images_dir = os.path.join('samples', 'front')
+        samples_with_images = []
+        
+        if os.path.exists(images_dir):
+            available_files_lower = {}
+            for file in os.listdir(images_dir):
+                file_lower = file.lower()
+                if file_lower not in available_files_lower:
+                    available_files_lower[file_lower] = file
+            
+            for _, row in df_clean.iterrows():
+                image_filename = row['image_filename']
+                image_path = os.path.join(images_dir, image_filename)
+                
+                if os.path.exists(image_path):
+                    samples_with_images.append(row.to_dict())
+                    continue
+                
+                filename_lower = image_filename.lower()
+                if filename_lower in available_files_lower:
+                    samples_with_images.append(row.to_dict())
+                    continue
+                
+                if filename_lower.endswith('.jpg') or filename_lower.endswith('.jpeg'):
+                    base_name = os.path.splitext(image_filename)[0]
+                    for ext in ['.jpg', '.jpeg', '.JPG', '.JPEG']:
+                        test_filename = base_name + ext
+                        if test_filename.lower() in available_files_lower:
+                            samples_with_images.append(row.to_dict())
+                            break
+        
+        return samples_with_images, None
+        
+    except Exception as e:
+        return None, str(e)
+
+# Sidebar Navigation
+with st.sidebar:
+    st.markdown("""
+    <div style="padding: 1rem 0; border-bottom: 1px solid rgba(255,255,255,0.25); margin-bottom: 2rem;">
+        <h1 style="color: white; font-size: 1.5rem; margin-bottom: 0.5rem;">
+            <i class="bi bi-robot"></i> BMI Predictor
+        </h1>
+        <p style="color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0;">AI-Powered Analysis</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Navigation
     page = st.radio(
-        "Choose a page",
-        ["🏠 Home", "📊 Samples", "ℹ️ About"],
-        label_visibility="collapsed"
+        "Navigation",
+        ["🏠 Home", "📊 Samples", "ℹ️ Privacy Policy"],
+        label_visibility="collapsed",
+        key="nav_radio"
     )
     
+    st.session_state.current_page = page
+    
     st.markdown("---")
+    
+    # Model Status
     st.markdown("### Model Status")
     if st.session_state.model_loaded:
         st.success("✅ Model Loaded")
@@ -131,11 +313,8 @@ with st.sidebar:
             st.session_state.bmi_predictor = None
             st.rerun()
 
-# Main content based on page selection
+# Main Content
 if page == "🏠 Home":
-    st.markdown('<div class="main-header">🤖 BMI Predictor</div>', unsafe_allow_html=True)
-    st.markdown("### AI-Powered Body Mass Index Calculator from Facial Images")
-    
     # Load model
     if st.session_state.bmi_predictor is None:
         with st.spinner("Loading BMI prediction model..."):
@@ -143,130 +322,262 @@ if page == "🏠 Home":
             if predictor:
                 st.session_state.bmi_predictor = predictor
                 st.session_state.model_loaded = True
-                st.success("Model loaded successfully!")
             else:
-                st.error(f"Failed to load model: {error}")
                 st.session_state.model_loaded = False
+                st.error(f"Failed to load model: {error}")
     
-    # File uploader
-    st.markdown("---")
-    st.markdown("### 📤 Upload Image")
-    uploaded_file = st.file_uploader(
-        "Choose an image file",
-        type=['png', 'jpg', 'jpeg', 'gif', 'webp'],
-        help="Upload a facial image to predict BMI"
-    )
+    # Tabs for different sections
+    tab1, tab2, tab3 = st.tabs(["📖 Introduction", "⚙️ How It Works", "📱 The App"])
     
-    if uploaded_file is not None:
-        # Display uploaded image
+    # Introduction Tab
+    with tab1:
+        st.markdown('<h2 class="text-white fw-bold mb-3">Introduction</h2>', unsafe_allow_html=True)
+        
+        with st.container():
+            st.markdown("""
+            <div class="custom-card">
+                <h3 style="color: #333; margin-bottom: 1.5rem;">Welcome to BMI Predictor</h3>
+                <p style="font-size: 1.1rem; color: #666; margin-bottom: 1.5rem;">
+                    Our AI-powered BMI (Body Mass Index) Predictor uses advanced machine learning to estimate your BMI from a single photograph. 
+                    This innovative tool combines computer vision, deep learning, and multi-modal data analysis to provide accurate predictions.
+                </p>
+                
+                <div style="background: #e7f3ff; padding: 1.5rem; border-radius: 10px; margin: 1.5rem 0; text-align: center;">
+                    <p style="color: #667eea; font-weight: bold; font-size: 1.1rem; margin: 0;">
+                        <i class="bi bi-university"></i>
+                        Developed by the Qatar University research team, led by Dr. Amith Khandakar
+                    </p>
+                </div>
+                
+                <h4 style="color: #333; margin-top: 2rem; margin-bottom: 1rem;">What is BMI?</h4>
+                <p style="color: #666; margin-bottom: 1rem;">
+                    Body Mass Index (BMI) is a measure of body fat based on height and weight. It's calculated by dividing your weight in kilograms 
+                    by the square of your height in meters. BMI categories include:
+                </p>
+                <ul style="color: #666;">
+                    <li><strong>Underweight:</strong> BMI less than 18.5</li>
+                    <li><strong>Normal weight:</strong> BMI 18.5 to 24.9</li>
+                    <li><strong>Overweight:</strong> BMI 25 to 29.9</li>
+                    <li><strong>Obese:</strong> BMI 30 or higher</li>
+                </ul>
+                
+                <div style="background: #fff3cd; padding: 1.5rem; border-radius: 10px; margin-top: 2rem;">
+                    <p style="color: #856404; margin: 0;">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <strong>Important Note:</strong> This tool is for demonstration purposes only. For accurate health assessments, 
+                        please consult with a healthcare professional. BMI is a screening tool and may not accurately reflect body fat 
+                        percentage for all individuals.
+                    </p>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # How It Works Tab
+    with tab2:
+        st.markdown('<h2 class="text-white fw-bold mb-3">How the Model Works</h2>', unsafe_allow_html=True)
+        
+        with st.container():
+            st.markdown("""
+            <div class="custom-card">
+                <h3 style="color: #333; margin-bottom: 1.5rem;">Hybrid Deep Learning Architecture</h3>
+                <p style="color: #666; margin-bottom: 2rem;">
+                    Our model uses a sophisticated hybrid architecture that combines multiple data modalities:
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("""
+                <div class="feature-card">
+                    <div style="font-size: 2.5rem; color: #667eea; margin-bottom: 1rem;">
+                        <i class="bi bi-image"></i>
+                    </div>
+                    <h5 style="color: #333; font-weight: bold; margin-bottom: 1rem;">Image Processing</h5>
+                    <p style="color: #666; margin: 0;">
+                        Uses a custom convolutional neural network to extract visual features from facial images, 
+                        analyzing facial structure and body proportions.
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown("""
+                <div class="feature-card">
+                    <div style="font-size: 2.5rem; color: #28a745; margin-bottom: 1rem;">
+                        <i class="bi bi-diagram-3"></i>
+                    </div>
+                    <h5 style="color: #333; font-weight: bold; margin-bottom: 1rem;">Graph Neural Network</h5>
+                    <p style="color: #666; margin: 0;">
+                        Analyzes 21 facial landmarks using a multi-scale Graph Convolutional Network (GCN) to understand 
+                        spatial relationships between facial features.
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown("""
+                <div class="feature-card">
+                    <div style="font-size: 2.5rem; color: #17a2b8; margin-bottom: 1rem;">
+                        <i class="bi bi-bar-chart"></i>
+                    </div>
+                    <h5 style="color: #333; font-weight: bold; margin-bottom: 1rem;">Tabular Features</h5>
+                    <p style="color: #666; margin: 0;">
+                        Processes 36 engineered features including facial measurements, ratios, and demographic information 
+                        through a multi-layer neural network.
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown("""
+                <div class="feature-card">
+                    <div style="font-size: 2.5rem; color: #ffc107; margin-bottom: 1rem;">
+                        <i class="bi bi-arrow-left-right"></i>
+                    </div>
+                    <h5 style="color: #333; font-weight: bold; margin-bottom: 1rem;">Fusion & Prediction</h5>
+                    <p style="color: #666; margin: 0;">
+                        Combines all features using multi-head attention mechanism and shared layers to generate 
+                        accurate BMI predictions.
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            st.markdown("""
+            <div class="custom-card">
+                <h4 style="color: #333; margin-bottom: 1rem;">Model Training</h4>
+                <p style="color: #666; margin: 0;">
+                    The model was trained using 5-fold cross-validation on a comprehensive dataset, ensuring robust performance 
+                    and generalization. It uses multi-task learning to simultaneously predict BMI, age, sex, and BMI category.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # The App Tab
+    with tab3:
+        st.markdown('<h2 class="text-white fw-bold mb-3">The App</h2>', unsafe_allow_html=True)
+        
         col1, col2 = st.columns([1, 1])
         
         with col1:
-            st.markdown("### 📷 Uploaded Image")
-            image = Image.open(uploaded_file)
-            st.image(image, caption="Uploaded Image", use_container_width=True)
+            st.markdown("""
+            <div class="custom-card">
+                <h3 style="color: #333; margin-bottom: 1.5rem;">
+                    <i class="bi bi-upload" style="color: #667eea;"></i> Upload Your Image
+                </h3>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            uploaded_file = st.file_uploader(
+                "Choose an image file",
+                type=['png', 'jpg', 'jpeg', 'gif', 'webp'],
+                help="Upload a facial image to predict BMI",
+                key="image_uploader"
+            )
+            
+            if uploaded_file is not None:
+                image = Image.open(uploaded_file)
+                st.image(image, caption="Uploaded Image", use_container_width=True)
+                st.session_state.uploaded_image = uploaded_file
         
         with col2:
-            st.markdown("### 🔍 Analysis")
+            st.markdown("""
+            <div class="custom-card">
+                <h3 style="color: #333; margin-bottom: 1.5rem;">
+                    <i class="bi bi-graph-up-arrow" style="color: #28a745;"></i> Your Results
+                </h3>
+            </div>
+            """, unsafe_allow_html=True)
             
-            if st.button("🔮 Predict BMI", type="primary", use_container_width=True):
-                if st.session_state.bmi_predictor is None:
-                    st.error("Model not loaded. Please reload the model from the sidebar.")
-                else:
-                    with st.spinner("Analyzing image and predicting BMI..."):
-                        # Read image bytes
-                        image_bytes = uploaded_file.read()
-                        
-                        # Predict BMI
-                        result = st.session_state.bmi_predictor.predict(image_bytes)
-                        
-                        if result['success']:
-                            bmi = result['bmi']
-                            category = result['category']
-                            message = result.get('message', '')
-                            
-                            # Display results
-                            category_name, color, icon = get_bmi_category(bmi)
-                            
-                            st.markdown(f"""
-                            <div class="bmi-result">
-                                <div class="bmi-value">{bmi:.2f}</div>
-                                <div class="bmi-category" style="color: {color};">
-                                    {icon} {category_name}
-                                </div>
-                                <p style="margin-top: 1rem;">{message}</p>
-                            </div>
-                            """, unsafe_allow_html=True)
-                            
-                            # Additional info
-                            with st.expander("📊 BMI Information"):
-                                st.markdown(f"""
-                                - **BMI Value**: {bmi:.2f}
-                                - **Category**: {category_name}
-                                - **Status**: {icon}
-                                """)
+            if st.session_state.uploaded_image is None:
+                st.markdown("""
+                <div style="text-align: center; padding: 3rem; color: #999;">
+                    <i class="bi bi-graph-up" style="font-size: 4rem; opacity: 0.3;"></i>
+                    <p style="margin-top: 1rem;">Upload an image and click "Predict BMI" to see your results here</p>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                if st.button("🔮 Predict BMI", type="primary", use_container_width=True):
+                    if st.session_state.bmi_predictor is None:
+                        st.error("Model not loaded. Please reload the model from the sidebar.")
+                    else:
+                        with st.spinner("Analyzing image and predicting BMI..."):
+                            try:
+                                # Read image bytes
+                                image_bytes = st.session_state.uploaded_image.read()
                                 
-                                st.markdown("""
-                                **BMI Categories:**
-                                - Underweight: < 18.5
-                                - Normal weight: 18.5 - 24.9
-                                - Overweight: 25 - 29.9
-                                - Obese: ≥ 30
-                                """)
-                        else:
-                            st.error(f"Prediction failed: {result.get('error', 'Unknown error')}")
-    
-    # Features section
-    st.markdown("---")
-    st.markdown("### ✨ Features")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""
-        <div class="feature-card">
-            <h4>🖼️ Image Processing</h4>
-            <p>Uses a custom convolutional neural network to extract visual features from facial images, analyzing facial structure and body proportions.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div class="feature-card">
-            <h4>🤖 ML Model Integration</h4>
-            <p>Advanced hybrid model combining image features, tabular data, and landmark information for accurate BMI prediction.</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-        <div class="feature-card">
-            <h4>📊 BMI Display</h4>
-            <p>Beautiful visualization of BMI results with category classification and personalized health recommendations.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div class="feature-card">
-            <h4>⚡ Real-time Processing</h4>
-            <p>Fast prediction with loading indicators and instant results display.</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Disclaimer
-    st.markdown("---")
-    st.warning("⚠️ **Disclaimer**: This is a demonstration application. For accurate BMI assessment, please consult a healthcare professional.")
+                                # Predict BMI
+                                result = st.session_state.bmi_predictor.predict(image_bytes)
+                                
+                                if result['success']:
+                                    st.session_state.prediction_result = result
+                                    st.success("Prediction completed!")
+                                else:
+                                    st.error(f"Prediction failed: {result.get('error', 'Unknown error')}")
+                                    st.session_state.prediction_result = None
+                            except Exception as e:
+                                st.error(f"Error during prediction: {str(e)}")
+                                st.session_state.prediction_result = None
+                
+                # Display results if available
+                if st.session_state.prediction_result:
+                    result = st.session_state.prediction_result
+                    bmi = result['bmi']
+                    category = result['category']
+                    message = result.get('message', '')
+                    
+                    category_name, color, icon = get_bmi_category(bmi)
+                    
+                    # BMI Value
+                    st.markdown(f'<div class="bmi-value">{bmi:.2f}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="bmi-category" style="color: {color};">{icon} {category_name}</div>', unsafe_allow_html=True)
+                    
+                    # Message
+                    st.info(message)
+                    
+                    # BMI Scale
+                    st.markdown("""
+                    <div class="bmi-scale">
+                        <div class="scale-segment scale-underweight">Underweight</div>
+                        <div class="scale-segment scale-normal">Normal</div>
+                        <div class="scale-segment scale-overweight">Overweight</div>
+                        <div class="scale-segment scale-obese">Obese</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Additional info
+                    with st.expander("📊 BMI Information"):
+                        st.markdown(f"""
+                        - **BMI Value**: {bmi:.2f}
+                        - **Category**: {category_name}
+                        - **Status**: {icon}
+                        """)
+                        st.markdown("""
+                        **BMI Categories:**
+                        - Underweight: < 18.5
+                        - Normal weight: 18.5 - 24.9
+                        - Overweight: 25 - 29.9
+                        - Obese: ≥ 30
+                        """)
+                    
+                    if st.button("🔄 Upload Another Image", use_container_width=True):
+                        st.session_state.uploaded_image = None
+                        st.session_state.prediction_result = None
+                        st.rerun()
 
 elif page == "📊 Samples":
-    st.title("📊 Sample Images with True BMI Values")
+    st.markdown('<h2 class="text-white fw-bold mb-3">Sample Images with True BMI Values</h2>', unsafe_allow_html=True)
     
-    # Load samples
-    csv_path = os.path.join('samples', 'dataset.csv')
+    samples_data, error = get_samples_data()
     
-    if not os.path.exists(csv_path):
-        st.error(f"Samples CSV not found at {csv_path}")
+    if error:
+        st.error(f"Error loading samples: {error}")
+    elif samples_data is None or len(samples_data) == 0:
+        st.warning("No samples with images found. Please ensure images are placed in: `samples/front/`")
     else:
-        try:
-            df = pd.read_csv(csv_path)
+        with st.container():
+            st.markdown("""
+            <div class="custom-card">
+            """, unsafe_allow_html=True)
             
             # Filters
             col1, col2, col3 = st.columns(3)
@@ -277,105 +588,171 @@ elif page == "📊 Samples":
             with col3:
                 num_samples = st.number_input("Number of Samples", min_value=1, max_value=100, value=10, step=1)
             
-            # Filter data
-            if 'BMI' in df.columns and 'image_filename' in df.columns:
-                df_clean = df[['image_filename', 'BMI']].dropna()
-                df_clean['BMI'] = pd.to_numeric(df_clean['BMI'], errors='coerce')
-                df_clean = df_clean.dropna(subset=['BMI'])
-                
-                # Filter by BMI range
-                filtered = df_clean[(df_clean['BMI'] >= min_bmi) & (df_clean['BMI'] <= max_bmi)]
-                
-                if len(filtered) > 0:
-                    # Limit samples
-                    if len(filtered) > num_samples:
-                        filtered = filtered.sample(n=num_samples)
-                    
-                    st.info(f"Showing {len(filtered)} sample(s) (Total available: {len(df_clean)})")
-                    
-                    # Display samples in grid
-                    images_dir = os.path.join('samples', 'front')
-                    cols_per_row = 4
-                    
-                    for i in range(0, len(filtered), cols_per_row):
-                        cols = st.columns(cols_per_row)
-                        for j, (idx, row) in enumerate(filtered.iloc[i:i+cols_per_row].iterrows()):
-                            with cols[j]:
-                                bmi_value = row['BMI']
-                                filename = row['image_filename']
-                                
-                                # Try to load image
-                                image_path = os.path.join(images_dir, filename)
-                                if os.path.exists(image_path):
-                                    img = Image.open(image_path)
-                                    st.image(img, caption=f"BMI: {bmi_value:.2f}", use_container_width=True)
-                                else:
-                                    category, color, icon = get_bmi_category(bmi_value)
-                                    st.markdown(f"""
-                                    <div style="background: {color}; color: white; padding: 2rem; border-radius: 10px; text-align: center;">
-                                        <h3>{icon}</h3>
-                                        <h4>BMI: {bmi_value:.2f}</h4>
-                                        <p>{category}</p>
-                                        <small>{filename}</small>
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                else:
-                    st.warning(f"No samples found in BMI range {min_bmi} - {max_bmi}")
+            # Filter samples
+            filtered = [s for s in samples_data if min_bmi <= float(s['BMI']) <= max_bmi]
+            
+            if len(filtered) > num_samples:
+                import random
+                filtered = random.sample(filtered, num_samples)
+            
+            if len(filtered) == 0:
+                st.warning(f"No samples found in BMI range {min_bmi} - {max_bmi}")
             else:
-                st.error("Required columns (BMI, image_filename) not found in CSV")
+                st.info(f"Showing {len(filtered)} sample(s) (Total available with images: {len(samples_data)})")
                 
-        except Exception as e:
-            st.error(f"Error loading samples: {str(e)}")
+                # Display samples in grid
+                images_dir = os.path.join('samples', 'front')
+                cols_per_row = 4
+                
+                for i in range(0, len(filtered), cols_per_row):
+                    cols = st.columns(cols_per_row)
+                    for j, sample in enumerate(filtered[i:i+cols_per_row]):
+                        with cols[j]:
+                            bmi_value = float(sample['BMI'])
+                            filename = sample['image_filename']
+                            sample_id = sample.get('id', filename.replace('.jpg', '').replace('.png', ''))
+                            
+                            category, color, icon = get_bmi_category(bmi_value)
+                            
+                            # Try to load image
+                            image_path = os.path.join(images_dir, filename)
+                            if not os.path.exists(image_path):
+                                # Try case-insensitive match
+                                for file in os.listdir(images_dir):
+                                    if file.lower() == filename.lower():
+                                        image_path = os.path.join(images_dir, file)
+                                        break
+                            
+                            if os.path.exists(image_path):
+                                img = Image.open(image_path)
+                                st.image(img, caption=f"BMI: {bmi_value:.2f}", use_container_width=True)
+                            else:
+                                st.markdown(f"""
+                                <div style="background: {color}; color: white; padding: 2rem; border-radius: 10px; text-align: center; min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                                    <div style="font-size: 3rem; margin-bottom: 1rem;">{icon}</div>
+                                    <h4 style="color: white; margin: 0.5rem 0;">BMI: {bmi_value:.2f}</h4>
+                                    <p style="color: white; margin: 0.5rem 0;">{category}</p>
+                                    <small style="color: rgba(255,255,255,0.8);">{sample_id}</small>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            
+                            st.markdown(f"""
+                            <div style="text-align: center; padding: 1rem; background: white; border-radius: 0 0 10px 10px;">
+                                <h6 style="color: {color}; font-weight: bold; margin: 0.5rem 0;">BMI: {bmi_value:.2f}</h6>
+                                <small style="color: #666; display: block; margin: 0.5rem 0;">{category}</small>
+                                <small style="color: #999; font-size: 0.7rem;">ID: {sample_id}</small>
+                            </div>
+                            """, unsafe_allow_html=True)
+            
+            st.markdown("</div>", unsafe_allow_html=True)
 
-elif page == "ℹ️ About":
-    st.title("ℹ️ About BMI Predictor")
+elif page == "ℹ️ Privacy Policy":
+    st.markdown('<h2 class="text-white fw-bold mb-3">Privacy Policy</h2>', unsafe_allow_html=True)
     
-    st.markdown("""
-    ## 🤖 BMI Predictor - AI-Powered Analysis
-    
-    A complete web application that predicts BMI (Body Mass Index) from uploaded facial images using machine learning.
-    
-    ### Features
-    
-    - 🖼️ **Image Upload**: Easy drag & drop or click to upload images
-    - 🤖 **ML Model Integration**: Advanced hybrid model combining multiple data sources
-    - 📊 **BMI Display**: Beautiful visualization of BMI results with category classification
-    - 🎨 **Modern UI**: Responsive and user-friendly interface
-    - ⚡ **Real-time Processing**: Fast prediction with loading indicators
-    
-    ### How It Works
-    
-    1. **Image Processing**: Uses a custom convolutional neural network to extract visual features from facial images
-    2. **Feature Extraction**: Analyzes facial structure and body proportions
-    3. **BMI Prediction**: Combines image features with advanced ML models
-    - **Result Display**: Shows BMI value, category, and personalized recommendations
-    
-    ### Supported Image Formats
-    
-    - PNG
-    - JPG/JPEG
-    - GIF
-    - WEBP
-    
-    Maximum file size: 16MB
-    
-    ### Important Notes
-    
-    ⚠️ **This is a demonstration application. For accurate BMI assessment, please consult a healthcare professional.**
-    
-    ### Technology Stack
-    
-    - **Framework**: Streamlit
-    - **ML Framework**: PyTorch
-    - **Image Processing**: PIL/Pillow
-    - **Data Processing**: Pandas, NumPy
-    """)
+    with st.container():
+        st.markdown("""
+        <div class="custom-card">
+            <h3 style="color: #333; margin-bottom: 1.5rem;">Terms of Use and Restrictions</h3>
+            
+            <h4 style="color: #333; margin-top: 2rem; margin-bottom: 1rem;">Non-Commercial Use Only</h4>
+            <p style="color: #666; margin-bottom: 1.5rem;">
+                This BMI Predictor application is provided for <strong>research and educational purposes only</strong>. 
+                The use of this application for commercial purposes is <strong>strictly prohibited</strong> without explicit 
+                written permission from Qatar University.
+            </p>
+            
+            <h4 style="color: #333; margin-top: 2rem; margin-bottom: 1rem;">Data Privacy</h4>
+            <ul style="color: #666; margin-bottom: 1.5rem;">
+                <li><strong>No Data Storage:</strong> Images uploaded to this application are processed in real-time and are 
+                    <strong>not stored</strong> on our servers.</li>
+                <li><strong>No Personal Information Collection:</strong> We do not collect, store, or transmit any personal 
+                    information about users.</li>
+                <li><strong>Temporary Processing:</strong> Images are processed temporarily in memory and are immediately 
+                    discarded after prediction.</li>
+            </ul>
+            
+            <h4 style="color: #333; margin-top: 2rem; margin-bottom: 1rem;">Restrictions</h4>
+            <ol style="color: #666; margin-bottom: 1.5rem;">
+                <li style="margin-bottom: 1rem;">
+                    <strong>Commercial Use Prohibited:</strong> This application may not be used for any commercial purposes, 
+                    including but not limited to:
+                    <ul>
+                        <li>Commercial health assessments</li>
+                        <li>Paid services</li>
+                        <li>Integration into commercial products</li>
+                        <li>Resale or redistribution</li>
+                    </ul>
+                </li>
+                <li style="margin-bottom: 1rem;">
+                    <strong>Medical Disclaimer:</strong>
+                    <ul>
+                        <li>This tool is <strong>NOT</strong> a medical device</li>
+                        <li>Results are <strong>NOT</strong> a substitute for professional medical advice</li>
+                        <li><strong>DO NOT</strong> use this tool for medical diagnosis or treatment decisions</li>
+                        <li>Always consult qualified healthcare professionals for health assessments</li>
+                    </ul>
+                </li>
+                <li style="margin-bottom: 1rem;">
+                    <strong>Research Use:</strong>
+                    <ul>
+                        <li>This application is intended for research and educational purposes</li>
+                        <li>Users may use it for academic research with proper attribution</li>
+                        <li>Any research publications using this tool should acknowledge Qatar University</li>
+                    </ul>
+                </li>
+            </ol>
+            
+            <h4 style="color: #333; margin-top: 2rem; margin-bottom: 1rem;">Intellectual Property</h4>
+            <ul style="color: #666; margin-bottom: 1.5rem;">
+                <li>The model, algorithms, and application are the intellectual property of Qatar University</li>
+                <li>Unauthorized reproduction, distribution, or modification is prohibited</li>
+                <li>For licensing inquiries, please contact Qatar University</li>
+            </ul>
+            
+            <h4 style="color: #333; margin-top: 2rem; margin-bottom: 1rem;">Limitation of Liability</h4>
+            <p style="color: #666; margin-bottom: 1rem;">
+                Qatar University and its researchers are not liable for:
+            </p>
+            <ul style="color: #666; margin-bottom: 1.5rem;">
+                <li>Any decisions made based on predictions from this application</li>
+                <li>Any inaccuracies in BMI predictions</li>
+                <li>Any consequences arising from the use or misuse of this application</li>
+            </ul>
+            
+            <h4 style="color: #333; margin-top: 2rem; margin-bottom: 1rem;">Contact</h4>
+            <p style="color: #666; margin-bottom: 1rem;">
+                For questions, licensing inquiries, or permission requests, please contact:
+            </p>
+            <ul style="color: #666; margin-bottom: 1.5rem;">
+                <li><strong>Qatar University Research Team</strong></li>
+                <li><strong>Led by Dr. Amith Khandakar</strong></li>
+            </ul>
+            
+            <hr style="margin: 2rem 0;">
+            
+            <p style="color: #999; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                <strong>Last Updated:</strong> January 2025
+            </p>
+            <p style="color: #999; font-size: 0.9rem; margin-top: 0.5rem;">
+                <strong>By using this application, you agree to these terms and restrictions.</strong>
+            </p>
+            
+            <div style="background: #fff3cd; padding: 1.5rem; border-radius: 10px; margin-top: 2rem;">
+                <p style="color: #856404; margin: 0;">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Important:</strong> This application is for research and educational purposes only. 
+                    Commercial use is strictly prohibited. Always consult healthcare professionals for medical advice.
+                </p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # Footer
 st.markdown("---")
 st.markdown("""
-<div style="text-align: center; color: #666; padding: 2rem;">
-    <p>BMI Predictor - AI-Powered Body Mass Index Calculator</p>
-    <p>Built with ❤️ using Streamlit and PyTorch</p>
+<div style="text-align: center; color: rgba(255,255,255,0.8); padding: 2rem;">
+    <p style="margin: 0.5rem 0;">BMI Predictor - AI-Powered Body Mass Index Calculator</p>
+    <p style="margin: 0.5rem 0;">Built with ❤️ using Streamlit and PyTorch</p>
+    <p style="margin: 0.5rem 0; font-size: 0.9rem;">Developed by Qatar University Research Team</p>
 </div>
 """, unsafe_allow_html=True)
