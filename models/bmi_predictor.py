@@ -6,8 +6,27 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
-import cv2
-from scipy.spatial import distance
+# Try to import scipy.spatial.distance (optional - we'll use numpy as fallback)
+try:
+    from scipy.spatial import distance
+    SCIPY_AVAILABLE = True
+except ImportError:
+    SCIPY_AVAILABLE = False
+    print("⚠️ Warning: scipy not available. Will use numpy for distance calculations.")
+    # Fallback: use numpy for euclidean distance
+    class DistanceFallback:
+        @staticmethod
+        def euclidean(p1, p2):
+            return np.linalg.norm(np.array(p1) - np.array(p2))
+    distance = DistanceFallback()
+
+# Try to import cv2 (optional - we'll use PIL as fallback)
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+    print("⚠️ Warning: OpenCV (cv2) not available. Will use PIL for image conversion.")
 
 # Import sklearn for model loading
 try:
@@ -450,11 +469,27 @@ class LandmarkExtractor:
         """
         h, w = image_np.shape[:2]
         
-        # Convert to RGB if needed
+        # Convert to RGB if needed - use PIL instead of cv2 for better compatibility
+        # Ensure image is uint8 format for PIL
+        if image_np.dtype != np.uint8:
+            if image_np.max() <= 1.0:
+                image_np = (image_np * 255).astype(np.uint8)
+            else:
+                image_np = image_np.astype(np.uint8)
+        
         if len(image_np.shape) == 2:
-            image_np = cv2.cvtColor(image_np, cv2.COLOR_GRAY2RGB)
+            # Grayscale to RGB
+            image_pil = Image.fromarray(image_np, mode='L').convert('RGB')
+            image_np = np.array(image_pil)
         elif image_np.shape[2] == 4:
-            image_np = cv2.cvtColor(image_np, cv2.COLOR_RGBA2RGB)
+            # RGBA to RGB
+            image_pil = Image.fromarray(image_np, mode='RGBA').convert('RGB')
+            image_np = np.array(image_pil)
+        elif image_np.shape[2] == 3:
+            # Already RGB, ensure it's in the right format
+            # Make sure it's contiguous array for MediaPipe
+            if not image_np.flags['C_CONTIGUOUS']:
+                image_np = np.ascontiguousarray(image_np)
         
         # Process with Face Mesh
         results = self.face_mesh.process(image_np)
