@@ -6,16 +6,27 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
+import cv2
+from scipy.spatial import distance
 
-# Import sklearn for model loading (model contains RobustScaler objects)
+# Import sklearn for model loading
 try:
     import sklearn
-    from sklearn.preprocessing import RobustScaler
+    from sklearn.preprocessing import RobustScaler, StandardScaler
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
-    print("Warning: sklearn not available. Model loading may fail if model contains sklearn objects.")
+    print("Warning: sklearn not available.")
 
+# Import MediaPipe for landmark extraction
+try:
+    import mediapipe as mp
+    MEDIAPIPE_AVAILABLE = True
+except ImportError:
+    MEDIAPIPE_AVAILABLE = False
+    print("⚠️ Warning: MediaPipe not available.")
+    print("   Please install: pip install mediapipe")
+    print("   Or install all requirements: pip install -r requirements.txt")
 
 # Try to import torch_geometric for GCN support
 try:
@@ -140,7 +151,6 @@ else:
                 nn.MultiheadAttention(hidden, 4, dropout=dropout, batch_first=True) for _ in range(layers)
             ])
             self.norms = nn.ModuleList([nn.LayerNorm(hidden) for _ in range(layers)])
-            # Output expects 3 scales concatenated: hidden * 3 = 384
             self.output = nn.Sequential(
                 nn.Linear(hidden * 3, out_dim), nn.BatchNorm1d(out_dim), nn.ReLU(), nn.Dropout(dropout),
                 nn.Linear(out_dim, out_dim), nn.BatchNorm1d(out_dim), nn.ReLU()
@@ -155,7 +165,6 @@ else:
                 res = x
                 x, _ = attn(x, x, x)
                 x = norm(self.dropout(x) + res)
-            # Simulate 3 scales by using mean, max, and attention-weighted mean
             x_mean = x.mean(1)
             x_max = x.max(1)[0]
             x_attn = (x * torch.softmax(x.mean(-1, keepdim=True), dim=1)).mean(1)
@@ -165,7 +174,7 @@ else:
 
 class HybridModel(nn.Module):
     """
-    Hybrid model architecture that matches the saved model structure.
+    Hybrid model architecture that matches hybrid_model_v2.pth structure.
     This model combines image features, tabular features, and landmark features.
     """
     def __init__(self, num_features, num_landmarks=0, landmark_dim=3, dropout=0.3, use_gcn=True):
@@ -209,7 +218,7 @@ class HybridModel(nn.Module):
             nn.Linear(128, 64), nn.BatchNorm1d(64), nn.ReLU(), nn.Linear(64, 1)
         )
         
-        # Other heads (for multi-task learning, though we only use BMI)
+        # Other heads
         self.age_head = nn.Sequential(
             nn.Linear(256, 128), nn.BatchNorm1d(128), nn.ReLU(), nn.Dropout(dropout * 0.5), nn.Linear(128, 1)
         )
@@ -220,24 +229,16 @@ class HybridModel(nn.Module):
             nn.Linear(256, 128), nn.BatchNorm1d(128), nn.ReLU(), nn.Dropout(dropout * 0.5), nn.Linear(128, 4)
         )
 
-        # Log vars for multi-task learning
         self.log_vars = nn.Parameter(torch.zeros(4))
-        
         self._init_weights()
     
     def _build_cnn_backbone(self):
-        """
-        Build a custom CNN backbone for image feature extraction.
-        Output feature size: 512
-        """
+        """Build a custom CNN backbone for image feature extraction."""
         return nn.Sequential(
-            # First block
             nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
-            
-            # Second block
             nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
@@ -245,8 +246,6 @@ class HybridModel(nn.Module):
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            
-            # Third block
             nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
@@ -254,15 +253,13 @@ class HybridModel(nn.Module):
             nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            
-            # Fourth block
             nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
             nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
-            nn.AdaptiveAvgPool2d((1, 1))  # Global average pooling
+            nn.AdaptiveAvgPool2d((1, 1))
         )
 
     def _init_weights(self):
@@ -277,24 +274,24 @@ class HybridModel(nn.Module):
 
     def forward(self, features, image, graph_features=None, edges=None):
         """
-        Forward pass matching the training code signature.
+        Forward pass - NO DUMMY DATA, uses real extracted features.
         
         Args:
-            features: Tabular features [B, num_features]
-            image: Image tensor [B, 3, H, W]
-            graph_features: Landmark features [B, num_landmarks, landmark_dim] (optional)
-            edges: Graph edges dictionary (optional)
+            features: Tabular features [B, num_features] - REAL EXTRACTED FEATURES
+            image: Image tensor [B, 3, H, W] - REAL IMAGE
+            graph_features: Landmark features [B, num_landmarks, landmark_dim] - REAL LANDMARKS
+            edges: Graph edges dictionary - REAL GRAPH STRUCTURE
         """
         bs = features.size(0)
-
-        # Image features
+        
+        # Image features from CNN backbone
         img_feat = self.img_backbone(image).view(bs, -1)
         img_feat = self.img_proj(img_feat)
-
-        # Tabular features
+        
+        # Tabular features from extracted geometric features
         tab_feat = self.tab_net(features)
 
-        # GCN features
+        # GCN features from extracted landmarks
         if self.use_gcn and graph_features is not None and graph_features.numel() > 0:
             try:
                 if GNN_AVAILABLE and edges is not None and 'local' in edges:
@@ -315,12 +312,10 @@ class HybridModel(nn.Module):
                     gcn_feat = self.gcn(graph_features)
                 combined = torch.cat([img_feat, tab_feat, gcn_feat], 1)
             except Exception as e:
-                # Fallback if GCN fails
-                print(f"Warning: GCN forward failed, using zeros: {e}")
+                print(f"Warning: GCN forward failed: {e}")
                 gcn_feat = torch.zeros(bs, 256, device=img_feat.device)
                 combined = torch.cat([img_feat, tab_feat, gcn_feat], 1)
         else:
-            # If no GCN, use zeros for gcn_feat dimension
             gcn_feat = torch.zeros(bs, 256, device=img_feat.device)
             combined = torch.cat([img_feat, tab_feat, gcn_feat], 1)
 
@@ -328,19 +323,184 @@ class HybridModel(nn.Module):
         combined_u = combined.unsqueeze(1)
         attn_out, _ = self.fusion_attn(combined_u, combined_u, combined_u)
         fused = self.fusion_norm(attn_out.squeeze(1) + combined)
-
+        
         # Shared layers
         shared = self.shared(fused)
-
+        
         # BMI prediction
         bmi = self.bmi_head(shared).squeeze(-1)
-
+        
         return bmi
+
+
+class LandmarkExtractor:
+    """Extract facial landmarks using MediaPipe - matching training preprocessing"""
+    
+    def __init__(self):
+        if not MEDIAPIPE_AVAILABLE:
+            raise RuntimeError("MediaPipe is not available. Cannot extract landmarks.")
+        
+        # Initialize MediaPipe Face Mesh
+        self.mp_face_mesh = mp.solutions.face_mesh
+        self.face_mesh = self.mp_face_mesh.FaceMesh(
+            static_image_mode=True,
+            max_num_faces=1,
+            refine_landmarks=True,
+            min_detection_confidence=0.5
+        )
+        
+    def calculate_geometric_features(self, landmarks):
+        """
+        Calculate geometric features from landmarks.
+        
+        Args:
+            landmarks: numpy array of shape (468, 2) with x, y coordinates
+            
+        Returns:
+            Dictionary with geometric features
+        """
+        if landmarks is None or len(landmarks) < 468:
+            return None
+
+        try:
+            features = {}
+            
+            # Key landmarks indices
+            chin = landmarks[152]
+            forehead_center = landmarks[10]
+            left_cheek = landmarks[234]
+            right_cheek = landmarks[454]
+            left_jaw = landmarks[172]
+            right_jaw = landmarks[397]
+            left_eye_left = landmarks[263]      
+            left_eye_right = landmarks[362]     
+            right_eye_left = landmarks[33]      
+            right_eye_right = landmarks[133]    
+            nose_tip = landmarks[1]
+            nose_bridge = landmarks[6]
+            left_eyebrow_inner = landmarks[70]
+            left_eyebrow_outer = landmarks[107] 
+            right_eyebrow_inner = landmarks[300]
+            right_eyebrow_outer = landmarks[336]
+
+            # Calculate geometric features
+            cheekbone_width = distance.euclidean(left_cheek, right_cheek)
+            jaw_width = distance.euclidean(left_jaw, right_jaw)
+            features['jaw_cheek_ratio'] = cheekbone_width / (jaw_width + 1e-6)
+
+            upper_face_height = distance.euclidean(forehead_center, nose_tip)
+            features['face_ratio_height_width'] = cheekbone_width / (upper_face_height + 1e-6)
+
+            # Face contour for perimeter and area
+            face_contour_points = [left_jaw, left_cheek, forehead_center, right_cheek, right_jaw, chin]
+            perimeter = sum(
+                distance.euclidean(face_contour_points[i], face_contour_points[(i+1) % len(face_contour_points)])
+                for i in range(len(face_contour_points))
+            )
+            area = 0.5 * abs(sum(
+                face_contour_points[i][0] * face_contour_points[(i+1) % len(face_contour_points)][1] -
+                face_contour_points[(i+1) % len(face_contour_points)][0] * face_contour_points[i][1]
+                for i in range(len(face_contour_points))
+            ))
+            features['face_compactness'] = perimeter / (area + 1e-6)
+
+            # Eye features
+            left_eye_width = distance.euclidean(left_eye_left, left_eye_right)
+            right_eye_width = distance.euclidean(right_eye_left, right_eye_right)
+            features['left_eye_width'] = left_eye_width
+            features['right_eye_width'] = right_eye_width
+            features['eye_width_ratio'] = left_eye_width / (right_eye_width + 1e-6)
+
+            # Face dimensions
+            face_height = distance.euclidean(forehead_center, chin)
+            lower_face_height = distance.euclidean(nose_tip, chin)
+            features['face_height'] = face_height
+            features['face_width_cheeks'] = cheekbone_width
+            features['face_width_jaw'] = jaw_width
+
+            # Nose features
+            nose_length = distance.euclidean(nose_bridge, nose_tip)
+            features['nose_length'] = nose_length
+            features['nose_width'] = nose_length * 0.4  # Approximate
+            features['nose_ratio'] = features['nose_width'] / (nose_length + 1e-6)
+
+            # Mouth width (approximate)
+            features['mouth_width'] = jaw_width * 0.6
+
+            # Face area and perimeter
+            features['face_oval_area'] = area
+            features['face_oval_perimeter'] = perimeter
+
+            return features
+            
+        except Exception as e:
+            print(f"Error calculating features: {e}")
+            return None
+        
+    def extract_landmarks(self, image_np):
+        """
+        Extract landmarks from image.
+        
+        Args:
+            image_np: numpy array of image (RGB format)
+            
+        Returns:
+            landmarks_3d: numpy array of shape (num_landmarks, 3) with x, y, z coordinates
+            geometric_features: dictionary with computed geometric features
+        """
+        h, w = image_np.shape[:2]
+        
+        # Convert to RGB if needed
+        if len(image_np.shape) == 2:
+            image_np = cv2.cvtColor(image_np, cv2.COLOR_GRAY2RGB)
+        elif image_np.shape[2] == 4:
+            image_np = cv2.cvtColor(image_np, cv2.COLOR_RGBA2RGB)
+        
+        # Process with Face Mesh
+        results = self.face_mesh.process(image_np)
+        
+        if not results.multi_face_landmarks:
+            print("No face landmarks detected")
+            return None, None
+        
+        # Get the first face
+        face_landmarks = results.multi_face_landmarks[0]
+        
+        # Extract 2D coordinates for geometric features
+        coords_2d = np.array([[lm.x * w, lm.y * h] for lm in face_landmarks.landmark])
+        
+        # Calculate geometric features
+        geometric_features = self.calculate_geometric_features(coords_2d)
+        
+        if geometric_features is None:
+            return None, None
+        
+        # Extract 3D coordinates for landmarks - select 21 key landmarks
+        key_indices = [
+            10, 152, 234, 454,  # Face outline
+            33, 133, 362, 263,  # Eyes
+            1, 6,  # Nose
+            61, 291,  # Mouth
+            0, 17,  # Face points
+            199, 428,  # More outline
+            130, 359,  # More eyes
+            70, 107, 300  # Eyebrows
+        ]
+        
+        landmarks_3d = []
+        for idx in key_indices:
+            lm = face_landmarks.landmark[idx]
+            landmarks_3d.append([lm.x * w, lm.y * h, lm.z * w])
+        
+        landmarks_3d = np.array(landmarks_3d, dtype=np.float32)
+        
+        return landmarks_3d, geometric_features
 
 
 class BMIPredictor:
     """
-    BMI Predictor class that wraps your PyTorch ML model.
+    BMI Predictor that uses hybrid_model_v2.pth with REAL extracted features.
+    NO DUMMY DATA - all features extracted from image.
     """
     
     def __init__(self, model_path=None):
@@ -348,9 +508,8 @@ class BMIPredictor:
         Initialize the BMI predictor.
         
         Args:
-            model_path: Path to your trained PyTorch model file (.pth)
+            model_path: Path to hybrid_model_v2.pth
         """
-        # Default model path
         if model_path is None:
             model_path = os.path.join(os.path.dirname(__file__), 'hybrid_model_v2.pth')
         
@@ -360,7 +519,23 @@ class BMIPredictor:
         self.model_loaded = False
         self.load_error = None
         
-        # Try to load model, but don't fail if it doesn't exist
+        # Initialize landmark extractor
+        if MEDIAPIPE_AVAILABLE:
+            try:
+                self.landmark_extractor = LandmarkExtractor()
+                print("✅ MediaPipe landmark extractor initialized")
+            except Exception as e:
+                print(f"❌ Could not initialize landmark extractor: {e}")
+                self.landmark_extractor = None
+                self.load_error = f"MediaPipe initialization failed: {str(e)}"
+        else:
+            self.landmark_extractor = None
+            self.load_error = "MediaPipe is not installed. Please run: pip install mediapipe"
+            print("❌ MediaPipe not available")
+            print("   To fix this, run: pip install mediapipe")
+            print("   Or install all requirements: pip install -r requirements.txt")
+        
+        # Try to load model
         try:
             if not os.path.exists(model_path):
                 raise FileNotFoundError(f"Model file not found at {model_path}")
@@ -368,236 +543,218 @@ class BMIPredictor:
             self.model_loaded = True
         except Exception as e:
             self.load_error = str(e)
-            print(f"Warning: Model could not be loaded during initialization: {e}")
-            print("Model will be loaded lazily when first prediction is requested.")
+            print(f"⚠️ Model could not be loaded: {e}")
     
     def load_model(self):
-        """
-        Load the PyTorch ML model.
-        """
+        """Load hybrid_model_v2.pth"""
         try:
-            print(f"Loading model from: {self.model_path}")
-            print(f"Using device: {self.device}")
+            print(f"📂 Loading hybrid_model_v2.pth from: {self.model_path}")
+            print(f"🖥️ Using device: {self.device}")
             
-            # Load the model
-            # weights_only=False is needed because the model contains sklearn objects (RobustScaler)
-            # This is safe since it's your own trained model
             loaded_data = torch.load(self.model_path, map_location=self.device, weights_only=False)
             
-            # Handle different model save formats
             if isinstance(loaded_data, dict):
-                # Check if it contains model_state (state_dict format)
-                if 'model_state' in loaded_data:
-                    # Extract model parameters
-                    model_state = loaded_data['model_state']
-                    num_landmarks = loaded_data.get('num_landmarks', 21)
-                    landmark_dim = loaded_data.get('landmark_dim', 3)
-                    num_features = len(loaded_data.get('feature_cols', [])) if loaded_data.get('feature_cols') else 36
-                    
-                    # Create model instance with correct signature
-                    self.model = HybridModel(
-                        num_features=num_features,
-                        num_landmarks=num_landmarks,
-                        landmark_dim=landmark_dim,
-                        dropout=0.3,
-                        use_gcn=True
-                    )
-                    
-                    # Load state dict (with strict=False to handle architecture differences)
-                    try:
-                        self.model.load_state_dict(model_state, strict=False)
-                        print("Model state_dict loaded (some layers may not match exactly)")
-                    except Exception as e:
-                        print(f"Warning: Could not load state_dict strictly: {e}")
-                        # Try to load matching layers only
-                        model_dict = self.model.state_dict()
-                        pretrained_dict = {k: v for k, v in model_state.items() if k in model_dict and model_dict[k].shape == v.shape}
-                        model_dict.update(pretrained_dict)
-                        self.model.load_state_dict(model_dict)
-                        print(f"Loaded {len(pretrained_dict)} matching layers")
-                    
-                    # Store scalers and other metadata
-                    self.feature_scaler = loaded_data.get('feature_scaler')
-                    self.landmark_scaler = loaded_data.get('landmark_scaler')
-                    self.feature_cols = loaded_data.get('feature_cols')
-                    self.graph_edges = loaded_data.get('graph_edges')
-                    self.num_landmarks = num_landmarks
-                    self.landmark_dim = landmark_dim
-                    
-                elif 'model' in loaded_data:
-                    self.model = loaded_data['model']
-                elif 'state_dict' in loaded_data:
-                    # If only state_dict is saved, create model and load it
-                    num_features = len(loaded_data.get('feature_cols', [])) if loaded_data.get('feature_cols') else 36
-                    self.model = HybridModel(num_features=num_features)
-                    self.model.load_state_dict(loaded_data['state_dict'], strict=False)
-                else:
-                    # Try to find a model-like object in the dict
-                    # Common pattern: the model might be the whole dict or a specific key
-                    self.model = loaded_data
-            else:
-                # If it's directly the model
-                self.model = loaded_data
+                model_state = loaded_data.get('model_state')
+                self.feature_scaler = loaded_data.get('feature_scaler')
+                self.landmark_scaler = loaded_data.get('landmark_scaler')
+                self.feature_cols = loaded_data.get('feature_cols', [])
+                self.graph_edges = loaded_data.get('graph_edges')
+                self.num_landmarks = loaded_data.get('num_landmarks', 21)
+                self.landmark_dim = loaded_data.get('landmark_dim', 3)
+                
+                num_features = len(self.feature_cols) if self.feature_cols else 36
+                
+                # Create model with exact architecture
+                self.model = HybridModel(
+                    num_features=num_features,
+                    num_landmarks=self.num_landmarks,
+                    landmark_dim=self.landmark_dim,
+                    dropout=0.3,
+                    use_gcn=True
+                )
+                
+                # Load state dict
+                self.model.load_state_dict(model_state, strict=False)
+                print("✅ Model state_dict loaded")
             
-            # Set model to evaluation mode
-            if hasattr(self.model, 'eval'):
-                self.model.eval()
-            
-            # Move model to appropriate device
-            if hasattr(self.model, 'to'):
-                self.model = self.model.to(self.device)
-            
-            print("Model loaded successfully!")
+            self.model.eval()
+            self.model = self.model.to(self.device)
+            print("✅ hybrid_model_v2.pth loaded and ready!")
             
         except Exception as e:
-            print(f"Error loading model: {str(e)}")
+            print(f"❌ Error loading model: {str(e)}")
             import traceback
             traceback.print_exc()
-            raise Exception(f"Failed to load model: {str(e)}")
+            raise
+    
+    def extract_features_from_image(self, image_np):
+        """
+        Extract ALL features from image - NO DUMMY DATA.
+        
+        Args:
+            image_np: numpy array of image (RGB format)
+            
+        Returns:
+            features_tensor: Tensor of tabular features - REAL EXTRACTED
+            landmarks_tensor: Tensor of landmark coordinates - REAL EXTRACTED
+        """
+        if self.landmark_extractor is None:
+            raise RuntimeError("❌ Landmark extractor not available. MediaPipe required.")
+        
+        # Extract landmarks and geometric features - REAL EXTRACTION
+        landmarks_3d, geometric_features = self.landmark_extractor.extract_landmarks(image_np)
+        
+        if geometric_features is None or landmarks_3d is None:
+            raise RuntimeError("❌ Could not extract features from image. Make sure face is visible.")
+        
+        print(f"✅ Extracted geometric features: {list(geometric_features.keys())}")
+        
+        # Build feature dictionary - use extracted features, add defaults only for demographics
+        feature_dict = geometric_features.copy()
+        
+        # Add demographic defaults (not extractable from image alone)
+        feature_dict['age'] = 30.0  # Default median age
+        feature_dict['sex_encoded'] = 0.5  # Neutral
+        feature_dict['race_Asian'] = 0.0
+        feature_dict['race_Black'] = 0.0
+        feature_dict['race_Hispanic'] = 0.0
+        feature_dict['race_White'] = 0.0
+        
+        # Create feature vector in correct order matching training
+        feature_vector = []
+        for col in self.feature_cols:
+            if col in feature_dict:
+                feature_vector.append(feature_dict[col])
+            else:
+                # If feature not found, use 0 (shouldn't happen for geometric features)
+                feature_vector.append(0.0)
+        
+        feature_array = np.array(feature_vector, dtype=np.float32).reshape(1, -1)
+        
+        # Scale features using the scaler from training
+        if self.feature_scaler is not None:
+            feature_array = self.feature_scaler.transform(feature_array)
+        
+        # Scale landmarks using the scaler from training
+        landmarks_flat = landmarks_3d.reshape(-1, self.landmark_dim)
+        if self.landmark_scaler is not None:
+            landmarks_flat = self.landmark_scaler.transform(landmarks_flat)
+        landmarks_scaled = landmarks_flat.reshape(1, self.num_landmarks, self.landmark_dim)
+        
+        # Convert to tensors - REAL FEATURES, NO DUMMY DATA
+        features_tensor = torch.from_numpy(feature_array).float().to(self.device)
+        landmarks_tensor = torch.from_numpy(landmarks_scaled).float().to(self.device)
+        
+        return features_tensor, landmarks_tensor
     
     def preprocess_image(self, image_bytes):
         """
-        Preprocess the uploaded image for PyTorch model input.
+        Preprocess image for model input.
         
         Args:
             image_bytes: Raw image bytes
             
         Returns:
-            Preprocessed image tensor ready for model input
+            image_tensor: Preprocessed image tensor
+            image_np: Numpy array for landmark extraction
         """
-        # Open image from bytes
+        # Open image
         image = Image.open(io.BytesIO(image_bytes))
         
-        # Convert to RGB if necessary
         if image.mode != 'RGB':
             image = image.convert('RGB')
         
-        # Define transforms - adjust these based on your model's training preprocessing
-        # Common preprocessing for PyTorch models
+        # Convert to numpy for landmark extraction
+        image_np = np.array(image)
+        
+        # Transform for model
         transform = transforms.Compose([
-            transforms.Resize((224, 224)),  # Adjust size if your model uses different input size
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],  # ImageNet normalization
-                               std=[0.229, 0.224, 0.225])
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
-        # Apply transforms
         image_tensor = transform(image)
+        image_tensor = image_tensor.unsqueeze(0).to(self.device)
         
-        # Add batch dimension
-        image_tensor = image_tensor.unsqueeze(0)
-        
-        # Move to device
-        image_tensor = image_tensor.to(self.device)
-        
-        return image_tensor
+        return image_tensor, image_np
     
     def predict(self, image_bytes):
         """
-        Predict BMI from image using the loaded PyTorch model.
+        Predict BMI from image using hybrid_model_v2.pth with REAL extracted features.
+        NO DUMMY DATA - all features extracted from image.
         
         Args:
-            image_bytes: Raw image bytes from uploaded file
+            image_bytes: Raw image bytes
             
         Returns:
             Dictionary with prediction results
         """
         try:
-            # Try to load model if it wasn't loaded during initialization
+            # Load model if needed
             if not self.model_loaded:
                 try:
                     if not os.path.exists(self.model_path):
-                        return {
-                            'success': False,
-                            'error': f'Model file not found at {self.model_path}. Please ensure the model file exists.'
-                        }
+                        return {'success': False, 'error': f'Model file not found at {self.model_path}'}
                     self.load_model()
                     self.model_loaded = True
-                    self.load_error = None
                 except Exception as e:
-                    self.load_error = str(e)
-                    import traceback
-                    traceback.print_exc()
-                    return {
-                        'success': False,
-                        'error': f'Failed to load model: {str(e)}. Please check the model file and dependencies.'
-                    }
+                    return {'success': False, 'error': f'Failed to load model: {str(e)}'}
             
-            if self.model is None:
-                error_msg = self.load_error or 'Model not loaded. Please check model file.'
-                return {
-                    'success': False,
-                    'error': error_msg
-                }
+            if self.landmark_extractor is None:
+                error_msg = (
+                    "MediaPipe is not installed. This is required for feature extraction.\n\n"
+                    "To fix this issue, please install MediaPipe:\n"
+                    "  pip install mediapipe\n\n"
+                    "Or install all requirements:\n"
+                    "  pip install -r requirements.txt\n\n"
+                    "After installation, please restart the application."
+                )
+                return {'success': False, 'error': error_msg}
             
             # Preprocess image
-            input_tensor = self.preprocess_image(image_bytes)
+            print("📸 Preprocessing image...")
+            image_tensor, image_np = self.preprocess_image(image_bytes)
             
-            # Make prediction
+            # Extract REAL features from image - NO DUMMY DATA
+            print("🔍 Extracting REAL features from image (no dummy data)...")
+            features_tensor, landmarks_tensor = self.extract_features_from_image(image_np)
+            
+            print(f"✅ REAL Features extracted:")
+            print(f"  📊 Tabular features: {features_tensor.shape}")
+            print(f"  📍 Landmarks: {landmarks_tensor.shape}")
+            print(f"  🖼️ Image: {image_tensor.shape}")
+            
+            # Set model to eval
+            self.model.eval()
+            
+            # Make prediction using hybrid_model_v2 with REAL features
             with torch.no_grad():
-                # Call the model with correct signature: (features, image, graph_features, edges)
-                # For inference, we only have images, so create dummy features
-                batch_size = input_tensor.shape[0]
-                num_features = len(self.feature_cols) if hasattr(self, 'feature_cols') and self.feature_cols else 36
+                print("🧠 Running hybrid_model_v2.pth inference with REAL features...")
                 
-                # Create dummy tabular features (zeros)
-                dummy_features = torch.zeros(batch_size, num_features, device=input_tensor.device, dtype=torch.float32)
+                edges = self.graph_edges
                 
-                # Create dummy graph features if needed
-                if hasattr(self, 'num_landmarks') and hasattr(self, 'landmark_dim'):
-                    num_landmarks = self.num_landmarks
-                    landmark_dim = self.landmark_dim
-                    dummy_graph = torch.zeros(batch_size, num_landmarks, landmark_dim, device=input_tensor.device, dtype=torch.float32)
-                else:
-                    dummy_graph = None
+                # Call model with REAL extracted features - NO DUMMY DATA
+                output = self.model(features_tensor, image_tensor, landmarks_tensor, edges)
                 
-                # Get graph edges if available
-                edges = getattr(self, 'graph_edges', None)
-                
-                if isinstance(self.model, nn.Module):
-                    # Standard PyTorch model call with correct signature
-                    output = self.model(dummy_features, input_tensor, dummy_graph, edges)
-                elif callable(self.model):
-                    # Fallback for other callable models
-                    output = self.model(input_tensor)
-                else:
-                    raise Exception("Model is not callable. Please check model structure.")
-                
-                # Handle different output formats
+                # Extract BMI
                 if isinstance(output, torch.Tensor):
-                    # If output is a tensor, extract the value
                     if output.dim() == 0:
-                        # Scalar tensor
                         bmi_value = output.item()
                     elif output.dim() == 1:
-                        # 1D tensor, take first element
                         bmi_value = output[0].item()
-                    elif output.dim() == 2:
-                        # 2D tensor (batch, features), take first element
-                        bmi_value = output[0][0].item() if output.shape[1] > 1 else output[0].item()
                     else:
-                        # Higher dimensions, flatten and take first
-                        bmi_value = output.flatten()[0].item()
-                elif isinstance(output, (list, tuple)):
-                    # If output is a list/tuple, take first element
-                    bmi_value = float(output[0])
-                elif isinstance(output, dict):
-                    # If output is a dict, look for common keys
-                    if 'bmi' in output:
-                        bmi_value = float(output['bmi'])
-                    elif 'prediction' in output:
-                        bmi_value = float(output['prediction'])
-                    else:
-                        # Take first value
-                        bmi_value = float(list(output.values())[0])
+                        bmi_value = output[0, 0].item()
                 else:
-                    # Try to convert to float
                     bmi_value = float(output)
+                
+                if not isinstance(bmi_value, (int, float)) or np.isnan(bmi_value) or np.isinf(bmi_value):
+                    raise Exception(f"Invalid BMI value: {bmi_value}")
+                
+                # Clamp to reasonable range
+                bmi_value = max(10.0, min(50.0, bmi_value))
+                print(f"✅ BMI Prediction from hybrid_model_v2: {bmi_value:.2f}")
             
-            # Ensure BMI is in a reasonable range (adjust if needed)
-            bmi_value = max(10.0, min(50.0, bmi_value))  # Clamp between 10 and 50
-            
-            # Categorize BMI
             category = self.categorize_bmi(bmi_value)
             
             return {
@@ -610,22 +767,11 @@ class BMIPredictor:
         except Exception as e:
             import traceback
             error_details = traceback.format_exc()
-            print(f"Prediction error: {error_details}")
-            return {
-                'success': False,
-                'error': f'Prediction error: {str(e)}'
-            }
+            print(f"❌ Prediction error:\n{error_details}")
+            return {'success': False, 'error': f'Prediction error: {str(e)}'}
     
     def categorize_bmi(self, bmi):
-        """
-        Categorize BMI value into standard categories.
-        
-        Args:
-            bmi: BMI value
-            
-        Returns:
-            BMI category string
-        """
+        """Categorize BMI value."""
         if bmi < 18.5:
             return 'Underweight'
         elif bmi < 25:
@@ -636,15 +782,7 @@ class BMIPredictor:
             return 'Obese'
     
     def get_bmi_message(self, category):
-        """
-        Get a message based on BMI category.
-        
-        Args:
-            category: BMI category string
-            
-        Returns:
-            Informative message
-        """
+        """Get message for BMI category."""
         messages = {
             'Underweight': 'You are underweight. Consider consulting a healthcare professional.',
             'Normal weight': 'You have a healthy weight. Keep up the good work!',

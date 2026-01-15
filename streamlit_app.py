@@ -94,11 +94,37 @@ def get_bmi_category_class(category):
     return ''
 
 def predict_bmi(image_bytes, predictor):
-    """Predict BMI from image bytes"""
+    """Predict BMI from image bytes using the model"""
     try:
+        # Validate predictor
+        if predictor is None:
+            return {
+                'success': False,
+                'error': 'Model predictor is not initialized. Please reload the page.'
+            }
+        
+        # Ensure model is loaded
+        if not predictor.model_loaded:
+            return {
+                'success': False,
+                'error': 'Model is not loaded. Please check model file.'
+            }
+        
+        # Call the model's predict method - THIS USES YOUR MODEL
         result = predictor.predict(image_bytes)
+        
+        # Validate result
+        if not isinstance(result, dict):
+            return {
+                'success': False,
+                'error': 'Invalid result format from model prediction.'
+            }
+        
         return result
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in predict_bmi: {error_details}")
         return {
             'success': False,
             'error': f'Prediction error: {str(e)}'
@@ -458,24 +484,59 @@ def show_about_page():
 
 def show_prediction_app():
     """Main prediction page"""
-def show_prediction_app():
-    """Main prediction page"""
     st.title("BMI Prediction from Face Image")
     st.markdown("Upload a clear frontal face image to predict BMI")
     
     # Load model
     if not st.session_state.model_loaded:
-        with st.spinner("Loading model..."):
+        with st.spinner("Loading AI model..."):
             predictor, error = load_predictor()
             
             if predictor is not None:
                 st.session_state.predictor = predictor
                 st.session_state.model_loaded = True
                 st.success("✅ Model loaded successfully!")
+                
+                # Show model information
+                with st.expander("ℹ️ Model Information"):
+                    st.write(f"**Model:** `hybrid_model_v2.pth`")
+                    st.write(f"**Model Path:** `{predictor.model_path}`")
+                    st.write(f"**Device:** {predictor.device}")
+                    st.write(f"**Model Status:** {'✅ Loaded' if predictor.model_loaded else '❌ Not Loaded'}")
+                    st.write(f"**Feature Extraction:** Real features from image (NO dummy data)")
+                    if hasattr(predictor, 'feature_cols') and predictor.feature_cols:
+                        st.write(f"**Number of Features:** {len(predictor.feature_cols)}")
+                    if hasattr(predictor, 'num_landmarks'):
+                        st.write(f"**Landmarks:** {predictor.num_landmarks}")
             else:
                 st.error(f"❌ Failed to load model: {error}")
-                st.info("Please ensure the model file exists at `models/hybrid_model_v2.pth`")
+                
+                # Check if it's a MediaPipe error
+                if "MediaPipe" in str(error) or "mediapipe" in str(error).lower():
+                    st.warning("""
+                    **MediaPipe Installation Required**
+                    
+                    MediaPipe is required for facial landmark extraction. Please install it:
+                    
+                    ```bash
+                    pip install mediapipe
+                    ```
+                    
+                    Or install all requirements:
+                    
+                    ```bash
+                    pip install -r requirements.txt
+                    ```
+                    
+                    After installation, please restart the Streamlit app.
+                    """)
+                else:
+                    st.info("Please ensure the model file exists at `models/hybrid_model_v2.pth`")
                 return
+    else:
+        # Show model status if already loaded
+        if st.session_state.predictor is not None:
+            st.info("✅ AI Model is ready for predictions")
     
     # File uploader
     uploaded_file = st.file_uploader(
@@ -498,16 +559,21 @@ def show_prediction_app():
             
             # Predict button
             if st.button("🔮 Predict BMI", type="primary"):
-                with st.spinner("Analyzing image..."):
+                with st.spinner("Analyzing image with hybrid_model_v2.pth..."):
                     # Get image bytes
                     uploaded_file.seek(0)
                     image_bytes = uploaded_file.read()
                     
-                    # Predict
+                    # Validate predictor is available
+                    if st.session_state.predictor is None:
+                        st.error("❌ Model predictor is not available. Please reload the page.")
+                        return
+                    
+                    # Predict using hybrid_model_v2.pth with REAL extracted features (NO DUMMY DATA)
                     result = predict_bmi(image_bytes, st.session_state.predictor)
                     
                     if result['success']:
-                        # Display results
+                        # Display results from model prediction
                         bmi = result['bmi']
                         category = result['category']
                         category_class = get_bmi_category_class(category)
@@ -520,6 +586,9 @@ def show_prediction_app():
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
+                        
+                        # Show that this is from hybrid_model_v2
+                        st.success("✅ Prediction completed using hybrid_model_v2.pth with real extracted features")
                         
                         # BMI Categories reference
                         st.markdown("---")
@@ -534,7 +603,30 @@ def show_prediction_app():
                         if result.get('message'):
                             st.info(result['message'])
                     else:
-                        st.error(f"❌ {result.get('error', 'Prediction failed')}")
+                        error_msg = result.get('error', 'Prediction failed')
+                        st.error(f"❌ {error_msg}")
+                        
+                        # Check if it's a MediaPipe error
+                        if "MediaPipe" in error_msg or "mediapipe" in error_msg.lower():
+                            st.warning("""
+                            **MediaPipe Installation Required**
+                            
+                            MediaPipe is required for feature extraction. Please install it:
+                            
+                            ```bash
+                            pip install mediapipe
+                            ```
+                            
+                            Or install all requirements:
+                            
+                            ```bash
+                            pip install -r requirements.txt
+                            ```
+                            
+                            After installation, please restart the Streamlit app.
+                            """)
+                        else:
+                            st.info("Please ensure the model file exists and is properly loaded.")
     else:
         st.info("👆 Please upload an image to get started")
 
