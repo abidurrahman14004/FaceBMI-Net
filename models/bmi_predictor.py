@@ -6,11 +6,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
+
 # Try to import scipy.spatial.distance (optional - we'll use numpy as fallback)
 try:
     from scipy.spatial import distance
     SCIPY_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError) as e:
     SCIPY_AVAILABLE = False
     print("⚠️ Warning: scipy not available. Will use numpy for distance calculations.")
     # Fallback: use numpy for euclidean distance
@@ -21,12 +22,14 @@ except ImportError:
     distance = DistanceFallback()
 
 # Try to import cv2 (optional - we'll use PIL as fallback)
+# Catch ImportError, OSError (for missing system libraries like libGL.so.1), and any other errors
 try:
     import cv2
     CV2_AVAILABLE = True
-except ImportError:
+except Exception as e:
     CV2_AVAILABLE = False
-    print("⚠️ Warning: OpenCV (cv2) not available. Will use PIL for image conversion.")
+    # Silently fail - we don't need cv2, PIL will handle image conversion
+    pass
 
 # Import sklearn for model loading
 try:
@@ -38,12 +41,13 @@ except ImportError:
     print("Warning: sklearn not available.")
 
 # Import MediaPipe for landmark extraction
+# MediaPipe doesn't require cv2, it works with numpy arrays directly
 try:
     import mediapipe as mp
     MEDIAPIPE_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError, AttributeError, Exception) as e:
     MEDIAPIPE_AVAILABLE = False
-    print("⚠️ Warning: MediaPipe not available.")
+    print(f"⚠️ Warning: MediaPipe not available ({type(e).__name__}).")
     print("   Please install: pip install mediapipe")
     print("   Or install all requirements: pip install -r requirements.txt")
 
@@ -569,16 +573,6 @@ class BMIPredictor:
             print("❌ MediaPipe not available")
             print("   To fix this, run: pip install mediapipe")
             print("   Or install all requirements: pip install -r requirements.txt")
-        
-        # Try to load model
-        try:
-            if not os.path.exists(model_path):
-                raise FileNotFoundError(f"Model file not found at {model_path}")
-            self.load_model()
-            self.model_loaded = True
-        except Exception as e:
-            self.load_error = str(e)
-            print(f"⚠️ Model could not be loaded: {e}")
     
     def load_model(self):
         """Load hybrid_model_v2.pth"""
