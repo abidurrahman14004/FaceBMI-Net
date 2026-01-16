@@ -20,10 +20,8 @@ torchvision>=0.15.0
 scikit-learn>=1.3.0
 
 # MediaPipe for facial landmark extraction
-# Version >=0.10.30 required for Python 3.13 compatibility on Streamlit Cloud
-# Available versions for Python 3.13: 0.10.30, 0.10.31
-# This version constraint works on both Python 3.12 (local) and Python 3.13 (Streamlit Cloud)
-mediapipe>=0.10.30
+# Using 0.10.13 - stable version compatible with Python 3.12 and 3.13
+mediapipe==0.10.13
 
 # Utilities
 requests>=2.31.0

@@ -44,51 +44,45 @@ except ImportError:
 # MediaPipe doesn't require cv2, it works with numpy arrays directly
 MEDIAPIPE_AVAILABLE = False
 mp = None
+FaceMesh = None
 MEDIAPIPE_IMPORT_ERROR = None
 
 try:
     import mediapipe as mp
-    # Test if we can actually access solutions and face_mesh
-    # This will raise AttributeError if not available
-    if mp is not None:
+    # Try new API first (MediaPipe 0.10.31+)
+    try:
+        from mediapipe.python.solutions.face_mesh import FaceMesh as FaceMeshNew
+        FaceMesh = FaceMeshNew
+        MEDIAPIPE_AVAILABLE = True
+        print("✅ MediaPipe imported successfully (new API)")
+        MEDIAPIPE_IMPORT_ERROR = None
+    except (ImportError, AttributeError):
+        # Fall back to old API (MediaPipe < 0.10.31)
         try:
-            _test_solutions = mp.solutions
-            _test_face_mesh = mp.solutions.face_mesh
-            MEDIAPIPE_AVAILABLE = True
-            print("✅ MediaPipe imported successfully")
-            # Clear any previous error
-            MEDIAPIPE_IMPORT_ERROR = None
-        except AttributeError as attr_err:
+            if mp is not None and hasattr(mp, 'solutions') and hasattr(mp.solutions, 'face_mesh'):
+                FaceMesh = mp.solutions.face_mesh.FaceMesh
+                MEDIAPIPE_AVAILABLE = True
+                print("✅ MediaPipe imported successfully (legacy API)")
+                MEDIAPIPE_IMPORT_ERROR = None
+            else:
+                raise AttributeError("mp.solutions.face_mesh not available")
+        except AttributeError:
             MEDIAPIPE_AVAILABLE = False
-            mp = None
-            MEDIAPIPE_IMPORT_ERROR = f"MediaPipe solutions not available: {str(attr_err)}"
+            FaceMesh = None
+            MEDIAPIPE_IMPORT_ERROR = "MediaPipe face_mesh not available. Please install: pip install mediapipe==0.10.13"
             print(f"⚠️ Warning: {MEDIAPIPE_IMPORT_ERROR}")
-            print("   This may indicate an incompatible MediaPipe version.")
-            print("   Please ensure requirements.txt has: mediapipe>=0.10.30")
-    else:
-        MEDIAPIPE_AVAILABLE = False
-        MEDIAPIPE_IMPORT_ERROR = "MediaPipe import returned None"
-        print(f"⚠️ Warning: {MEDIAPIPE_IMPORT_ERROR}")
 except ImportError as e:
     MEDIAPIPE_AVAILABLE = False
     mp = None
+    FaceMesh = None
     MEDIAPIPE_IMPORT_ERROR = f"MediaPipe not installed: {str(e)}"
-    # Print error for debugging, but allow app to continue
     print(f"⚠️ Warning: {MEDIAPIPE_IMPORT_ERROR}")
-    print("   MediaPipe will be installed from requirements.txt during deployment")
-except (OSError, AttributeError) as e:
-    MEDIAPIPE_AVAILABLE = False
-    mp = None
-    MEDIAPIPE_IMPORT_ERROR = f"MediaPipe error ({type(e).__name__}): {str(e)}"
-    print(f"⚠️ Warning: {MEDIAPIPE_IMPORT_ERROR}")
-    print("   Please ensure mediapipe>=0.10.30 is in requirements.txt")
 except Exception as e:
-    # Catch any other unexpected errors
     MEDIAPIPE_AVAILABLE = False
     mp = None
-    MEDIAPIPE_IMPORT_ERROR = f"MediaPipe import failed ({type(e).__name__}): {str(e)}"
+    FaceMesh = None
+    MEDIAPIPE_IMPORT_ERROR = f"MediaPipe error: {str(e)}"
     print(f"⚠️ Warning: {MEDIAPIPE_IMPORT_ERROR}")
-    print("   Please check requirements.txt includes: mediapipe>=0.10.30")
 
 # Try to import torch_geometric for GCN support
 try:
@@ -399,46 +393,23 @@ class LandmarkExtractor:
     """Extract facial landmarks using MediaPipe - matching training preprocessing"""
     
     def __init__(self):
-        if not MEDIAPIPE_AVAILABLE:
-            raise RuntimeError("MediaPipe is not available. Cannot extract landmarks.")
-        
-        # Check if mp is available and has solutions
-        if mp is None:
-            raise RuntimeError("MediaPipe module is None. Please reinstall: pip install mediapipe>=0.10.30")
-        
-        # Check if MediaPipe has solutions attribute
-        if not hasattr(mp, 'solutions'):
+        if not MEDIAPIPE_AVAILABLE or FaceMesh is None:
             raise RuntimeError(
-                "MediaPipe 'solutions' module not found. "
-                "This may be due to an incompatible MediaPipe version. "
-                "Please try: pip uninstall mediapipe && pip install mediapipe>=0.10.30"
-            )
-        
-        # Check if face_mesh exists in solutions
-        if not hasattr(mp.solutions, 'face_mesh'):
-            raise RuntimeError(
-                "MediaPipe 'face_mesh' not found in solutions. "
-                "Please try: pip uninstall mediapipe && pip install mediapipe>=0.10.30"
+                "MediaPipe is not available. Please install: pip install mediapipe==0.10.13"
             )
         
         # Initialize MediaPipe Face Mesh
         try:
-            self.mp_face_mesh = mp.solutions.face_mesh
-            self.face_mesh = self.mp_face_mesh.FaceMesh(
+            self.face_mesh = FaceMesh(
                 static_image_mode=True,
                 max_num_faces=1,
                 refine_landmarks=True,
                 min_detection_confidence=0.5
             )
-        except AttributeError as e:
-            raise RuntimeError(
-                f"MediaPipe FaceMesh initialization failed: {str(e)}. "
-                "Please ensure MediaPipe is properly installed: pip install mediapipe>=0.10.30"
-            )
         except Exception as e:
             raise RuntimeError(
-                f"MediaPipe initialization error: {str(e)}. "
-                "Please try: pip uninstall mediapipe && pip install mediapipe>=0.10.30"
+                f"MediaPipe FaceMesh initialization failed: {str(e)}. "
+                "Please install: pip install mediapipe==0.10.13"
             )
         
     def calculate_geometric_features(self, landmarks):
@@ -657,20 +628,14 @@ class BMIPredictor:
                 f"MediaPipe is not available.\n\n"
                 f"Error: {error_detail}\n\n"
                 "MediaPipe is required for facial landmark extraction.\n\n"
-                "**For Streamlit Cloud Deployment:**\n"
-                "  1. Ensure requirements.txt includes: mediapipe>=0.10.30\n"
-                "  2. MediaPipe will be installed automatically during deployment\n"
-                "  3. Check deployment logs to verify MediaPipe installation\n"
-                "  4. If error persists, try redeploying the app\n\n"
-                "**For Local Development:**\n"
-                "  pip install mediapipe>=0.10.30\n\n"
+                "**Installation:**\n"
+                "  pip install mediapipe==0.10.13\n\n"
                 "Or install all requirements:\n"
                 "  pip install -r requirements.txt\n\n"
                 "After installation, restart the Streamlit app."
             )
             print(f"❌ MediaPipe not available: {error_detail}")
-            print("   MediaPipe is required for feature extraction")
-            print("   Please ensure requirements.txt includes: mediapipe>=0.10.30")
+            print("   Please install: pip install mediapipe==0.10.13")
         
         # Try to load model if MediaPipe is available
         # Model loading requires MediaPipe for feature extraction

@@ -528,15 +528,10 @@ def show_prediction_app():
                     
                     MediaPipe is required for facial landmark extraction but is not installed.
                     
-                    **For Streamlit Cloud Deployment:**
-                    - MediaPipe should be automatically installed from `requirements.txt`
-                    - If this error persists, check that `requirements.txt` includes: `mediapipe>=0.10.30`
-                    - The app will automatically retry after dependencies are installed
-                    
-                    **For Local Development:**
+                    **Installation:**
                     ```bash
-                    pip install mediapipe>=0.10.30
-    ```
+                    pip install mediapipe==0.10.13
+                    ```
                     
                     Or install all requirements:
                     ```bash
@@ -560,12 +555,23 @@ def show_prediction_app():
                             st.success(f"✅ MediaPipe can be imported")
                             if hasattr(mp, '__version__'):
                                 st.write(f"   Version: {mp.__version__}")
+                            
+                            # Check new API
+                            try:
+                                from mediapipe.python.solutions.face_mesh import FaceMesh
+                                st.success("✅ New API available (mediapipe.python.solutions)")
+                            except:
+                                st.warning("⚠️ New API not available")
+                            
+                            # Check old API
                             if hasattr(mp, 'solutions'):
-                                st.success("✅ mp.solutions available")
+                                st.success("✅ Legacy API available (mp.solutions)")
                             else:
-                                st.error("❌ mp.solutions NOT available")
+                                st.warning("⚠️ Legacy API not available")
+                                
+                            st.info("**Solution:** Install mediapipe==0.10.13 for compatibility")
                         except ImportError as e:
-                            st.error(f"❌ MediaPipe import failed: {e}")
+                            st.error(f"❌ MediaPipe not installed: {e}")
                         except Exception as e:
                             st.error(f"❌ Unexpected error: {type(e).__name__}: {e}")
                     
@@ -660,7 +666,7 @@ def show_prediction_app():
                             MediaPipe is required for feature extraction. Please install it:
                             
                             ```bash
-                            pip install mediapipe
+                            pip install mediapipe==0.10.13
                             ```
                             
                             Or install all requirements:
