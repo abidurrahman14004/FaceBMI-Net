@@ -57,14 +57,14 @@ except (ImportError, OSError, AttributeError) as e:
     MEDIAPIPE_AVAILABLE = False
     mp = None  # Set to None to avoid NameError
     print(f"⚠️ Warning: MediaPipe not available ({type(e).__name__}: {str(e)}).")
-    print("   Please install: pip install mediapipe==0.10.13")
+    print("   Please install: pip install mediapipe>=0.10.30")
     print("   Or install all requirements: pip install -r requirements.txt")
 except Exception as e:
     # Catch any other unexpected errors
     MEDIAPIPE_AVAILABLE = False
     mp = None
     print(f"⚠️ Warning: MediaPipe import failed with unexpected error: {type(e).__name__}: {str(e)}")
-    print("   Please try: pip uninstall mediapipe && pip install mediapipe==0.10.13")
+    print("   Please try: pip uninstall mediapipe && pip install mediapipe>=0.10.30")
 
 # Try to import torch_geometric for GCN support
 try:
@@ -380,21 +380,21 @@ class LandmarkExtractor:
         
         # Check if mp is available and has solutions
         if mp is None:
-            raise RuntimeError("MediaPipe module is None. Please reinstall: pip install mediapipe==0.10.13")
+            raise RuntimeError("MediaPipe module is None. Please reinstall: pip install mediapipe>=0.10.30")
         
         # Check if MediaPipe has solutions attribute
         if not hasattr(mp, 'solutions'):
             raise RuntimeError(
                 "MediaPipe 'solutions' module not found. "
                 "This may be due to an incompatible MediaPipe version. "
-                "Please try: pip uninstall mediapipe && pip install mediapipe==0.10.13"
+                "Please try: pip uninstall mediapipe && pip install mediapipe>=0.10.30"
             )
         
         # Check if face_mesh exists in solutions
         if not hasattr(mp.solutions, 'face_mesh'):
             raise RuntimeError(
                 "MediaPipe 'face_mesh' not found in solutions. "
-                "Please try: pip uninstall mediapipe && pip install mediapipe==0.10.13"
+                "Please try: pip uninstall mediapipe && pip install mediapipe>=0.10.30"
             )
         
         # Initialize MediaPipe Face Mesh
@@ -409,12 +409,12 @@ class LandmarkExtractor:
         except AttributeError as e:
             raise RuntimeError(
                 f"MediaPipe FaceMesh initialization failed: {str(e)}. "
-                "Please ensure MediaPipe is properly installed: pip install mediapipe==0.10.13"
+                "Please ensure MediaPipe is properly installed: pip install mediapipe>=0.10.30"
             )
         except Exception as e:
             raise RuntimeError(
                 f"MediaPipe initialization error: {str(e)}. "
-                "Please try: pip uninstall mediapipe && pip install mediapipe==0.10.13"
+                "Please try: pip uninstall mediapipe && pip install mediapipe>=0.10.30"
             )
         
     def calculate_geometric_features(self, landmarks):
@@ -619,7 +619,7 @@ class BMIPredictor:
                         "This usually means MediaPipe is not properly installed.\n"
                         "Please try:\n"
                         "  pip uninstall mediapipe\n"
-                        "  pip install mediapipe==0.10.13\n\n"
+                        "  pip install mediapipe>=0.10.30\n\n"
                         "Or reinstall all requirements:\n"
                         "  pip install -r requirements.txt"
                     )
@@ -630,12 +630,12 @@ class BMIPredictor:
             self.load_error = (
                 "MediaPipe is not installed.\n\n"
                 "Please install it:\n"
-                "  pip install mediapipe==0.10.13\n\n"
+                "  pip install mediapipe>=0.10.30\n\n"
                 "Or install all requirements:\n"
                 "  pip install -r requirements.txt"
             )
             print("❌ MediaPipe not available")
-            print("   To fix this, run: pip install mediapipe==0.10.13")
+            print("   To fix this, run: pip install mediapipe>=0.10.30")
             print("   Or install all requirements: pip install -r requirements.txt")
         
         # Try to load model if MediaPipe is available
@@ -666,7 +666,7 @@ class BMIPredictor:
                 self.load_error = (
                     "MediaPipe is required but not available.\n\n"
                     "Please install MediaPipe:\n"
-                    "  pip install mediapipe==0.10.13\n\n"
+                    "  pip install mediapipe>=0.10.30\n\n"
                     "Or install all requirements:\n"
                     "  pip install -r requirements.txt"
                 )
@@ -852,7 +852,7 @@ class BMIPredictor:
                 error_msg = (
                     "MediaPipe is not installed. This is required for feature extraction.\n\n"
                     "To fix this issue, please install MediaPipe:\n"
-                    "  pip install mediapipe==0.10.13\n\n"
+                    "  pip install mediapipe>=0.10.30\n\n"
                     "Or install all requirements:\n"
                     "  pip install -r requirements.txt\n\n"
                     "After installation, please restart the application."
