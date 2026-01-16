@@ -42,14 +42,29 @@ except ImportError:
 
 # Import MediaPipe for landmark extraction
 # MediaPipe doesn't require cv2, it works with numpy arrays directly
+MEDIAPIPE_AVAILABLE = False
+mp = None
+
 try:
     import mediapipe as mp
+    # Test if we can actually access solutions and face_mesh
+    # This will raise AttributeError if not available
+    _test_solutions = mp.solutions
+    _test_face_mesh = mp.solutions.face_mesh
     MEDIAPIPE_AVAILABLE = True
-except (ImportError, OSError, AttributeError, Exception) as e:
+    print("✅ MediaPipe imported successfully")
+except (ImportError, OSError, AttributeError) as e:
     MEDIAPIPE_AVAILABLE = False
-    print(f"⚠️ Warning: MediaPipe not available ({type(e).__name__}).")
-    print("   Please install: pip install mediapipe")
+    mp = None  # Set to None to avoid NameError
+    print(f"⚠️ Warning: MediaPipe not available ({type(e).__name__}: {str(e)}).")
+    print("   Please install: pip install mediapipe==0.10.13")
     print("   Or install all requirements: pip install -r requirements.txt")
+except Exception as e:
+    # Catch any other unexpected errors
+    MEDIAPIPE_AVAILABLE = False
+    mp = None
+    print(f"⚠️ Warning: MediaPipe import failed with unexpected error: {type(e).__name__}: {str(e)}")
+    print("   Please try: pip uninstall mediapipe && pip install mediapipe==0.10.13")
 
 # Try to import torch_geometric for GCN support
 try:
@@ -363,14 +378,44 @@ class LandmarkExtractor:
         if not MEDIAPIPE_AVAILABLE:
             raise RuntimeError("MediaPipe is not available. Cannot extract landmarks.")
         
+        # Check if mp is available and has solutions
+        if mp is None:
+            raise RuntimeError("MediaPipe module is None. Please reinstall: pip install mediapipe==0.10.13")
+        
+        # Check if MediaPipe has solutions attribute
+        if not hasattr(mp, 'solutions'):
+            raise RuntimeError(
+                "MediaPipe 'solutions' module not found. "
+                "This may be due to an incompatible MediaPipe version. "
+                "Please try: pip uninstall mediapipe && pip install mediapipe==0.10.13"
+            )
+        
+        # Check if face_mesh exists in solutions
+        if not hasattr(mp.solutions, 'face_mesh'):
+            raise RuntimeError(
+                "MediaPipe 'face_mesh' not found in solutions. "
+                "Please try: pip uninstall mediapipe && pip install mediapipe==0.10.13"
+            )
+        
         # Initialize MediaPipe Face Mesh
-        self.mp_face_mesh = mp.solutions.face_mesh
-        self.face_mesh = self.mp_face_mesh.FaceMesh(
-            static_image_mode=True,
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5
-        )
+        try:
+            self.mp_face_mesh = mp.solutions.face_mesh
+            self.face_mesh = self.mp_face_mesh.FaceMesh(
+                static_image_mode=True,
+                max_num_faces=1,
+                refine_landmarks=True,
+                min_detection_confidence=0.5
+            )
+        except AttributeError as e:
+            raise RuntimeError(
+                f"MediaPipe FaceMesh initialization failed: {str(e)}. "
+                "Please ensure MediaPipe is properly installed: pip install mediapipe==0.10.13"
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"MediaPipe initialization error: {str(e)}. "
+                "Please try: pip uninstall mediapipe && pip install mediapipe==0.10.13"
+            )
         
     def calculate_geometric_features(self, landmarks):
         """
@@ -564,15 +609,67 @@ class BMIPredictor:
                 self.landmark_extractor = LandmarkExtractor()
                 print("✅ MediaPipe landmark extractor initialized")
             except Exception as e:
-                print(f"❌ Could not initialize landmark extractor: {e}")
+                error_msg = str(e)
+                print(f"❌ Could not initialize landmark extractor: {error_msg}")
                 self.landmark_extractor = None
-                self.load_error = f"MediaPipe initialization failed: {str(e)}"
+                # Provide helpful error message
+                if "solutions" in error_msg.lower():
+                    self.load_error = (
+                        f"MediaPipe initialization failed: {error_msg}\n\n"
+                        "This usually means MediaPipe is not properly installed.\n"
+                        "Please try:\n"
+                        "  pip uninstall mediapipe\n"
+                        "  pip install mediapipe==0.10.13\n\n"
+                        "Or reinstall all requirements:\n"
+                        "  pip install -r requirements.txt"
+                    )
+                else:
+                    self.load_error = f"MediaPipe initialization failed: {error_msg}"
         else:
             self.landmark_extractor = None
-            self.load_error = "MediaPipe is not installed. Please run: pip install mediapipe"
+            self.load_error = (
+                "MediaPipe is not installed.\n\n"
+                "Please install it:\n"
+                "  pip install mediapipe==0.10.13\n\n"
+                "Or install all requirements:\n"
+                "  pip install -r requirements.txt"
+            )
             print("❌ MediaPipe not available")
-            print("   To fix this, run: pip install mediapipe")
+            print("   To fix this, run: pip install mediapipe==0.10.13")
             print("   Or install all requirements: pip install -r requirements.txt")
+        
+        # Try to load model if MediaPipe is available
+        # Model loading requires MediaPipe for feature extraction
+        if self.landmark_extractor is not None:
+            try:
+                if not os.path.exists(model_path):
+                    error_msg = f"Model file not found at {model_path}. Please ensure hybrid_model_v2.pth exists."
+                    self.load_error = error_msg
+                    print(f"❌ {error_msg}")
+                    return
+                
+                # Load the model
+                self.load_model()
+                self.model_loaded = True
+                self.load_error = None
+                print("✅ Model loaded successfully during initialization")
+            except Exception as e:
+                error_msg = f"Failed to load model: {str(e)}"
+                self.load_error = error_msg
+                import traceback
+                error_trace = traceback.format_exc()
+                print(f"❌ Error loading model:\n{error_trace}")
+        else:
+            # Don't try to load model if MediaPipe is not available
+            # The error is already set above, but ensure it's not None
+            if self.load_error is None:
+                self.load_error = (
+                    "MediaPipe is required but not available.\n\n"
+                    "Please install MediaPipe:\n"
+                    "  pip install mediapipe==0.10.13\n\n"
+                    "Or install all requirements:\n"
+                    "  pip install -r requirements.txt"
+                )
     
     def load_model(self):
         """Load hybrid_model_v2.pth"""
@@ -580,41 +677,62 @@ class BMIPredictor:
             print(f"📂 Loading hybrid_model_v2.pth from: {self.model_path}")
             print(f"🖥️ Using device: {self.device}")
             
+            if not os.path.exists(self.model_path):
+                raise FileNotFoundError(f"Model file not found at {self.model_path}")
+            
             loaded_data = torch.load(self.model_path, map_location=self.device, weights_only=False)
             
-            if isinstance(loaded_data, dict):
-                model_state = loaded_data.get('model_state')
-                self.feature_scaler = loaded_data.get('feature_scaler')
-                self.landmark_scaler = loaded_data.get('landmark_scaler')
-                self.feature_cols = loaded_data.get('feature_cols', [])
-                self.graph_edges = loaded_data.get('graph_edges')
-                self.num_landmarks = loaded_data.get('num_landmarks', 21)
-                self.landmark_dim = loaded_data.get('landmark_dim', 3)
-                
-                num_features = len(self.feature_cols) if self.feature_cols else 36
-                
-                # Create model with exact architecture
-                self.model = HybridModel(
-                    num_features=num_features,
-                    num_landmarks=self.num_landmarks,
-                    landmark_dim=self.landmark_dim,
-                    dropout=0.3,
-                    use_gcn=True
-                )
-                
-                # Load state dict
+            if not isinstance(loaded_data, dict):
+                raise ValueError("Model file does not contain a dictionary. File may be corrupted.")
+            
+            model_state = loaded_data.get('model_state')
+            if model_state is None:
+                raise ValueError("Model file missing 'model_state' key. File may be corrupted or incompatible.")
+            
+            self.feature_scaler = loaded_data.get('feature_scaler')
+            self.landmark_scaler = loaded_data.get('landmark_scaler')
+            self.feature_cols = loaded_data.get('feature_cols', [])
+            self.graph_edges = loaded_data.get('graph_edges')
+            self.num_landmarks = loaded_data.get('num_landmarks', 21)
+            self.landmark_dim = loaded_data.get('landmark_dim', 3)
+            
+            num_features = len(self.feature_cols) if self.feature_cols else 36
+            print(f"📊 Model parameters: num_features={num_features}, num_landmarks={self.num_landmarks}, landmark_dim={self.landmark_dim}")
+            
+            # Create model with exact architecture
+            self.model = HybridModel(
+                num_features=num_features,
+                num_landmarks=self.num_landmarks,
+                landmark_dim=self.landmark_dim,
+                dropout=0.3,
+                use_gcn=True
+            )
+            
+            # Load state dict
+            try:
                 self.model.load_state_dict(model_state, strict=False)
                 print("✅ Model state_dict loaded")
+            except Exception as e:
+                raise ValueError(f"Failed to load model state_dict: {str(e)}. Model architecture may be incompatible.")
             
             self.model.eval()
             self.model = self.model.to(self.device)
             print("✅ hybrid_model_v2.pth loaded and ready!")
             
+        except FileNotFoundError as e:
+            error_msg = f"Model file not found: {str(e)}"
+            print(f"❌ {error_msg}")
+            raise Exception(error_msg)
+        except KeyError as e:
+            error_msg = f"Model file missing required keys: {str(e)}. Model file may be corrupted or incompatible."
+            print(f"❌ {error_msg}")
+            raise Exception(error_msg)
         except Exception as e:
-            print(f"❌ Error loading model: {str(e)}")
+            error_msg = f"Error loading model: {str(e)}"
+            print(f"❌ {error_msg}")
             import traceback
             traceback.print_exc()
-            raise
+            raise Exception(error_msg)
     
     def extract_features_from_image(self, image_np):
         """
@@ -734,7 +852,7 @@ class BMIPredictor:
                 error_msg = (
                     "MediaPipe is not installed. This is required for feature extraction.\n\n"
                     "To fix this issue, please install MediaPipe:\n"
-                    "  pip install mediapipe\n\n"
+                    "  pip install mediapipe==0.10.13\n\n"
                     "Or install all requirements:\n"
                     "  pip install -r requirements.txt\n\n"
                     "After installation, please restart the application."

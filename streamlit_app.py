@@ -67,18 +67,25 @@ def load_predictor():
         model_path = os.path.join('models', 'hybrid_model_v2.pth')
         
         if not os.path.exists(model_path):
-            st.warning(f"⚠️ Model file not found at {model_path}")
-            return None, f"Model file not found at {model_path}"
+            error_msg = f"Model file not found at {model_path}"
+            st.warning(f"⚠️ {error_msg}")
+            return None, error_msg
         
         predictor = BMIPredictor(model_path=model_path)
         
+        # Check if model loaded successfully
         if predictor.model_loaded:
             return predictor, None
         else:
-            return None, predictor.load_error
+            # Return error message, or default message if None
+            error_msg = predictor.load_error or "Model failed to load. Please check MediaPipe installation and model file."
+            return None, error_msg
             
     except Exception as e:
-        return None, str(e)
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in load_predictor: {error_details}")
+        return None, f"Error initializing predictor: {str(e)}"
 
 def get_bmi_category_class(category):
     """Get CSS class for BMI category"""
@@ -509,10 +516,13 @@ def show_prediction_app():
                     if hasattr(predictor, 'num_landmarks'):
                         st.write(f"**Landmarks:** {predictor.num_landmarks}")
             else:
-                st.error(f"❌ Failed to load model: {error}")
+                # Display error message
+                error_display = error if error else "Unknown error occurred during model loading"
+                st.error(f"❌ Failed to load model: {error_display}")
                 
                 # Check if it's a MediaPipe error
-                if "MediaPipe" in str(error) or "mediapipe" in str(error).lower():
+                error_str = str(error) if error else ""
+                if "MediaPipe" in error_str or "mediapipe" in error_str.lower():
                     st.warning("""
                     **MediaPipe Installation Required**
                     
