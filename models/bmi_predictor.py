@@ -49,22 +49,38 @@ try:
     import mediapipe as mp
     # Test if we can actually access solutions and face_mesh
     # This will raise AttributeError if not available
-    _test_solutions = mp.solutions
-    _test_face_mesh = mp.solutions.face_mesh
-    MEDIAPIPE_AVAILABLE = True
-    print("✅ MediaPipe imported successfully")
-except (ImportError, OSError, AttributeError) as e:
+    if mp is not None:
+        try:
+            _test_solutions = mp.solutions
+            _test_face_mesh = mp.solutions.face_mesh
+            MEDIAPIPE_AVAILABLE = True
+            print("✅ MediaPipe imported successfully")
+        except AttributeError as attr_err:
+            MEDIAPIPE_AVAILABLE = False
+            mp = None
+            print(f"⚠️ Warning: MediaPipe solutions not available: {str(attr_err)}")
+            print("   This may indicate an incompatible MediaPipe version.")
+            print("   Please ensure requirements.txt has: mediapipe>=0.10.30")
+    else:
+        MEDIAPIPE_AVAILABLE = False
+        print("⚠️ Warning: MediaPipe import returned None")
+except ImportError as e:
     MEDIAPIPE_AVAILABLE = False
-    mp = None  # Set to None to avoid NameError
+    mp = None
+    # Don't print error during import - it will be handled when predictor is initialized
+    # This allows the app to start even if MediaPipe isn't installed yet
+    pass
+except (OSError, AttributeError) as e:
+    MEDIAPIPE_AVAILABLE = False
+    mp = None
     print(f"⚠️ Warning: MediaPipe not available ({type(e).__name__}: {str(e)}).")
-    print("   Please install: pip install mediapipe>=0.10.30")
-    print("   Or install all requirements: pip install -r requirements.txt")
+    print("   Please ensure mediapipe>=0.10.30 is in requirements.txt")
 except Exception as e:
     # Catch any other unexpected errors
     MEDIAPIPE_AVAILABLE = False
     mp = None
-    print(f"⚠️ Warning: MediaPipe import failed with unexpected error: {type(e).__name__}: {str(e)}")
-    print("   Please try: pip uninstall mediapipe && pip install mediapipe>=0.10.30")
+    print(f"⚠️ Warning: MediaPipe import failed: {type(e).__name__}: {str(e)}")
+    print("   Please check requirements.txt includes: mediapipe>=0.10.30")
 
 # Try to import torch_geometric for GCN support
 try:
@@ -627,16 +643,22 @@ class BMIPredictor:
                     self.load_error = f"MediaPipe initialization failed: {error_msg}"
         else:
             self.landmark_extractor = None
+            # Set a clear error message
             self.load_error = (
-                "MediaPipe is not installed.\n\n"
-                "Please install it:\n"
+                "MediaPipe is not installed or not available.\n\n"
+                "MediaPipe is required for facial landmark extraction.\n\n"
+                "**For Streamlit Cloud:**\n"
+                "  - Ensure requirements.txt includes: mediapipe>=0.10.30\n"
+                "  - MediaPipe will be installed automatically during deployment\n"
+                "  - If this error persists, check the deployment logs\n\n"
+                "**For Local Development:**\n"
                 "  pip install mediapipe>=0.10.30\n\n"
                 "Or install all requirements:\n"
                 "  pip install -r requirements.txt"
             )
             print("❌ MediaPipe not available")
-            print("   To fix this, run: pip install mediapipe>=0.10.30")
-            print("   Or install all requirements: pip install -r requirements.txt")
+            print("   MediaPipe is required for feature extraction")
+            print("   Please ensure requirements.txt includes: mediapipe>=0.10.30")
         
         # Try to load model if MediaPipe is available
         # Model loading requires MediaPipe for feature extraction

@@ -523,23 +523,36 @@ def show_prediction_app():
                 # Check if it's a MediaPipe error
                 error_str = str(error) if error else ""
                 if "MediaPipe" in error_str or "mediapipe" in error_str.lower():
-                    st.warning("""
-                    **MediaPipe Installation Required**
+                    st.error("""
+                    **❌ MediaPipe Not Available**
                     
-                    MediaPipe is required for facial landmark extraction. Please install it:
+                    MediaPipe is required for facial landmark extraction but is not installed.
                     
+                    **For Streamlit Cloud Deployment:**
+                    - MediaPipe should be automatically installed from `requirements.txt`
+                    - If this error persists, check that `requirements.txt` includes: `mediapipe>=0.10.30`
+                    - The app will automatically retry after dependencies are installed
+                    
+                    **For Local Development:**
                     ```bash
-                    pip install mediapipe
-                    ```
+                    pip install mediapipe>=0.10.30
+    ```
                     
                     Or install all requirements:
-                    
                     ```bash
                     pip install -r requirements.txt
                     ```
                     
                     After installation, please restart the Streamlit app.
                     """)
+                    
+                    # Show requirements.txt content for debugging
+                    with st.expander("📋 Check requirements.txt"):
+                        try:
+                            with open('requirements.txt', 'r') as f:
+                                st.code(f.read(), language='text')
+                        except:
+                            st.write("Could not read requirements.txt")
                 else:
                     st.info("Please ensure the model file exists at `models/hybrid_model_v2.pth`")
                 return
