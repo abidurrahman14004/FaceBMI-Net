@@ -9,7 +9,7 @@ import sys
 # Add the current directory to Python path to import modules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from models.bmi_predictor import BMIPredictor
+from models.bmi_predictor import BMIPredictor, MEDIAPIPE_AVAILABLE, MEDIAPIPE_IMPORT_ERROR
 
 # Page configuration
 st.set_page_config(
@@ -545,6 +545,29 @@ def show_prediction_app():
                     
                     After installation, please restart the Streamlit app.
                     """)
+                    
+                    # Show diagnostic information
+                    with st.expander("🔍 Diagnostic Information"):
+                        st.write("**MediaPipe Status:**")
+                        st.write(f"- Available: {MEDIAPIPE_AVAILABLE}")
+                        if MEDIAPIPE_IMPORT_ERROR:
+                            st.write(f"- Error: {MEDIAPIPE_IMPORT_ERROR}")
+                        
+                        # Try to check if MediaPipe can be imported
+                        st.write("\n**Testing MediaPipe Import:**")
+                        try:
+                            import mediapipe as mp
+                            st.success(f"✅ MediaPipe can be imported")
+                            if hasattr(mp, '__version__'):
+                                st.write(f"   Version: {mp.__version__}")
+                            if hasattr(mp, 'solutions'):
+                                st.success("✅ mp.solutions available")
+                            else:
+                                st.error("❌ mp.solutions NOT available")
+                        except ImportError as e:
+                            st.error(f"❌ MediaPipe import failed: {e}")
+                        except Exception as e:
+                            st.error(f"❌ Unexpected error: {type(e).__name__}: {e}")
                     
                     # Show requirements.txt content for debugging
                     with st.expander("📋 Check requirements.txt"):

@@ -44,6 +44,7 @@ except ImportError:
 # MediaPipe doesn't require cv2, it works with numpy arrays directly
 MEDIAPIPE_AVAILABLE = False
 mp = None
+MEDIAPIPE_IMPORT_ERROR = None
 
 try:
     import mediapipe as mp
@@ -55,31 +56,38 @@ try:
             _test_face_mesh = mp.solutions.face_mesh
             MEDIAPIPE_AVAILABLE = True
             print("✅ MediaPipe imported successfully")
+            # Clear any previous error
+            MEDIAPIPE_IMPORT_ERROR = None
         except AttributeError as attr_err:
             MEDIAPIPE_AVAILABLE = False
             mp = None
-            print(f"⚠️ Warning: MediaPipe solutions not available: {str(attr_err)}")
+            MEDIAPIPE_IMPORT_ERROR = f"MediaPipe solutions not available: {str(attr_err)}"
+            print(f"⚠️ Warning: {MEDIAPIPE_IMPORT_ERROR}")
             print("   This may indicate an incompatible MediaPipe version.")
             print("   Please ensure requirements.txt has: mediapipe>=0.10.30")
     else:
         MEDIAPIPE_AVAILABLE = False
-        print("⚠️ Warning: MediaPipe import returned None")
+        MEDIAPIPE_IMPORT_ERROR = "MediaPipe import returned None"
+        print(f"⚠️ Warning: {MEDIAPIPE_IMPORT_ERROR}")
 except ImportError as e:
     MEDIAPIPE_AVAILABLE = False
     mp = None
-    # Don't print error during import - it will be handled when predictor is initialized
-    # This allows the app to start even if MediaPipe isn't installed yet
-    pass
+    MEDIAPIPE_IMPORT_ERROR = f"MediaPipe not installed: {str(e)}"
+    # Print error for debugging, but allow app to continue
+    print(f"⚠️ Warning: {MEDIAPIPE_IMPORT_ERROR}")
+    print("   MediaPipe will be installed from requirements.txt during deployment")
 except (OSError, AttributeError) as e:
     MEDIAPIPE_AVAILABLE = False
     mp = None
-    print(f"⚠️ Warning: MediaPipe not available ({type(e).__name__}: {str(e)}).")
+    MEDIAPIPE_IMPORT_ERROR = f"MediaPipe error ({type(e).__name__}): {str(e)}"
+    print(f"⚠️ Warning: {MEDIAPIPE_IMPORT_ERROR}")
     print("   Please ensure mediapipe>=0.10.30 is in requirements.txt")
 except Exception as e:
     # Catch any other unexpected errors
     MEDIAPIPE_AVAILABLE = False
     mp = None
-    print(f"⚠️ Warning: MediaPipe import failed: {type(e).__name__}: {str(e)}")
+    MEDIAPIPE_IMPORT_ERROR = f"MediaPipe import failed ({type(e).__name__}): {str(e)}"
+    print(f"⚠️ Warning: {MEDIAPIPE_IMPORT_ERROR}")
     print("   Please check requirements.txt includes: mediapipe>=0.10.30")
 
 # Try to import torch_geometric for GCN support
@@ -643,20 +651,24 @@ class BMIPredictor:
                     self.load_error = f"MediaPipe initialization failed: {error_msg}"
         else:
             self.landmark_extractor = None
-            # Set a clear error message
+            # Set a clear error message with diagnostic info
+            error_detail = MEDIAPIPE_IMPORT_ERROR if MEDIAPIPE_IMPORT_ERROR else "MediaPipe import failed"
             self.load_error = (
-                "MediaPipe is not installed or not available.\n\n"
+                f"MediaPipe is not available.\n\n"
+                f"Error: {error_detail}\n\n"
                 "MediaPipe is required for facial landmark extraction.\n\n"
-                "**For Streamlit Cloud:**\n"
-                "  - Ensure requirements.txt includes: mediapipe>=0.10.30\n"
-                "  - MediaPipe will be installed automatically during deployment\n"
-                "  - If this error persists, check the deployment logs\n\n"
+                "**For Streamlit Cloud Deployment:**\n"
+                "  1. Ensure requirements.txt includes: mediapipe>=0.10.30\n"
+                "  2. MediaPipe will be installed automatically during deployment\n"
+                "  3. Check deployment logs to verify MediaPipe installation\n"
+                "  4. If error persists, try redeploying the app\n\n"
                 "**For Local Development:**\n"
                 "  pip install mediapipe>=0.10.30\n\n"
                 "Or install all requirements:\n"
-                "  pip install -r requirements.txt"
+                "  pip install -r requirements.txt\n\n"
+                "After installation, restart the Streamlit app."
             )
-            print("❌ MediaPipe not available")
+            print(f"❌ MediaPipe not available: {error_detail}")
             print("   MediaPipe is required for feature extraction")
             print("   Please ensure requirements.txt includes: mediapipe>=0.10.30")
         
