@@ -9,14 +9,11 @@ venv/
 ENV/
 build/
 *.egg-info/
+dist/
 
-# Model files - download separately or use external storage
-*.pth
-*.h5
-*.pkl
-*.onnx
-*.pb
-models/*.pth
+# Model files - keep in Docker but exclude from build context if too large
+# Uncomment the next line if model files are very large and should be downloaded at runtime
+# models/*.pth
 
 # Uploads
 uploads/
@@ -40,12 +37,23 @@ Thumbs.db
 .git/
 .gitignore
 
-# Documentation
+# Documentation (optional - comment out if you want docs in image)
 README*.md
 *.md
+!DOCKER_SETUP.md
 
-# Deployment files
+# Deployment files (not needed in Docker)
 Procfile
 runtime.txt
 packages.txt
 setup.sh
+build.sh
+install_*.sh
+install_*.bat
+
+# Test files
+test_*.py
+*_test.py
+
+# Logs
+*.log
